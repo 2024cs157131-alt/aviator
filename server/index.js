@@ -19,6 +19,10 @@ const engine  = require('./game/engine');
 const routes  = require('./auth/routes');
 
 const app    = express();
+
+// Tell Express to trust the reverse proxy (Railway) so rate limiting works
+app.set('trust proxy', 1);
+
 const server = http.createServer(app);
 const io     = new Server(server, {
   cors:        { origin: '*', methods: ['GET','POST'] },

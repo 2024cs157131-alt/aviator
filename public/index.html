@@ -410,20 +410,64 @@ var App = {
   closeModal: function(id){ var m=document.getElementById(id); if(m) m.classList.remove('open'); },
   swapModal:  function(a,b){ App.closeModal(a); App.openModal(b); }
 };
+// Auth, BetPanel, Wallet, Sidebar are fully defined here in <head>
+// app.js OVERWRITES these with real implementations after loading
+// This means buttons work immediately AND get real functionality once JS loads
 var Auth = {
-  login:    function(){ if(window._AuthReal) window._AuthReal.login();    else alert('Loading, try again'); },
-  register: function(){ if(window._AuthReal) window._AuthReal.register(); else alert('Loading, try again'); },
-  logout:   function(){ if(window._AuthReal) window._AuthReal.logout();   else location.reload(); }
+  login: function() {
+    var e=document.getElementById('li-email'),p=document.getElementById('li-pass');
+    var email=e?e.value.trim():'', pass=p?p.value:'';
+    if(!email||!pass){ showFmAlert('login-alert','Email and password required'); return; }
+    setBtn('li-btn',true,'Logging in...');
+    fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      setBtn('li-btn',false,'LOGIN');
+      if(d.ok){ window.location.reload(); }
+      else { showFmAlert('login-alert', d.msg||'Login failed'); }
+    }).catch(function(){ setBtn('li-btn',false,'LOGIN'); showFmAlert('login-alert','Server error — try again'); });
+  },
+  register: function() {
+    var u=gv('reg-user'),e=gv('reg-email'),p=gv('reg-pass'),c=gv('reg-country');
+    hideAlert('reg-alert');
+    if(!u||!e||!p){ showFmAlert('reg-alert','All fields are required'); return; }
+    if(u.length<3){ showFmAlert('reg-alert','Username must be at least 3 characters'); return; }
+    if(p.length<8){ showFmAlert('reg-alert','Password must be at least 8 characters'); return; }
+    if(e.indexOf('@')<1){ showFmAlert('reg-alert','Enter a valid email address'); return; }
+    setBtn('reg-btn',true,'Creating account...');
+    fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:e,password:p,country:c})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      setBtn('reg-btn',false,'CREATE ACCOUNT');
+      if(d.ok){ window.location.reload(); }
+      else { showFmAlert('reg-alert', d.msg||'Registration failed — username or email already taken'); }
+    }).catch(function(){ setBtn('reg-btn',false,'CREATE ACCOUNT'); showFmAlert('reg-alert','Server error — try again'); });
+  },
+  logout: function() {
+    fetch('/api/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+    .then(function(){ window.location.reload(); }).catch(function(){ window.location.reload(); });
+  }
 };
 var BetPanel = {
   adj:   function(s,d){ var e=document.getElementById('bet-amt-'+s); if(e) e.value=Math.max(1,(parseFloat(e.value)||0)+d); },
   set:   function(s,v){ var e=document.getElementById('bet-amt-'+s); if(e) e.value=v; },
   dbl:   function(s)  { var e=document.getElementById('bet-amt-'+s); if(e) e.value=(parseFloat(e.value)||1)*2; },
   togAc: function(s)  { var c=document.getElementById('ac-'+s),i=document.getElementById('ao-'+s); if(c&&i) i.disabled=!c.checked; },
-  act:   function(s)  { if(window._BetReal) window._BetReal(s); else App.openModal('modal-login'); }
+  act:   function(s)  { App.openModal('modal-login'); }
 };
-var Wallet  = { showTab: function(t){ if(window._WalletReal) window._WalletReal.showTab(t); } };
-var Sidebar = { show: function(t,el){ if(window._SideReal) window._SideReal.show(t,el); } };
+var Wallet  = { showTab: function(t){
+  var dep=document.getElementById('w-dep'),wit=document.getElementById('w-wit');
+  if(dep) dep.style.display=t==='dep'?'block':'none';
+  if(wit) wit.style.display=t==='wit'?'block':'none';
+}};
+var Sidebar = { show: function(t,btn){
+  document.querySelectorAll('.sidebar-tab').forEach(function(b){b.classList.remove('active');});
+  if(btn) btn.classList.add('active');
+}};
+function gv(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
+function setBtn(id,dis,txt){ var b=document.getElementById(id); if(b){b.disabled=dis;b.textContent=txt;} }
+function showFmAlert(id,msg){ var e=document.getElementById(id); if(e){e.textContent=msg;e.className='form-alert error';e.style.display='block';} }
+function hideAlert(id){ var e=document.getElementById(id); if(e) e.style.display='none'; }
 function switchTab(btn,tab){
   document.querySelectorAll('.bet-tab').forEach(function(b){b.classList.remove('active');});
   btn.classList.add('active');
@@ -874,22 +918,35 @@ window.Canvas = (function() {
   // ── TINY UTILS ──────────────────────────────────────────────
   function g(id) { return document.getElementById(id); }
 
+  function safeJson(r) {
+    var ct = r.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      // Server returned HTML (error page) instead of JSON
+      return r.text().then(function(t) {
+        return { ok: false, msg: 'Server error ' + r.status + '. Check Railway logs.' };
+      });
+    }
+    return r.json().catch(function() {
+      return { ok: false, msg: 'Invalid response from server' };
+    });
+  }
+
   function httpPost(url, data, cb) {
     fetch(url, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(data)
     })
-    .then(function(r){ return r.json(); })
+    .then(safeJson)
     .then(cb)
-    .catch(function(e){ cb({ ok: false, msg: 'Network error: ' + e.message }); });
+    .catch(function(e){ cb({ ok: false, msg: 'Cannot reach server. Check your connection.' }); });
   }
 
   function httpGet(url, cb) {
     fetch(url)
-    .then(function(r){ return r.json(); })
+    .then(safeJson)
     .then(cb)
-    .catch(function(e){ cb({ ok: false, msg: 'Network error: ' + e.message }); });
+    .catch(function(e){ cb({ ok: false, msg: 'Cannot reach server. Check your connection.' }); });
   }
 
   function toast(msg, type) {
@@ -1028,10 +1085,14 @@ window.Canvas = (function() {
   // ── SOCKET ──────────────────────────────────────────────────
   function connectSocket() {
     if (typeof io === 'undefined') {
-      setTimeout(connectSocket, 500); // wait for socket.io to load
+      console.log('socket.io not ready, retrying in 300ms...');
+      setTimeout(connectSocket, 300);
       return;
     }
-    if (socket) { socket.removeAllListeners(); socket.disconnect(); socket = null; }
+    if (socket) {
+      try { socket.removeAllListeners(); socket.disconnect(); } catch(e){}
+      socket = null;
+    }
 
     socket = io({ transports: ['websocket', 'polling'] });
 

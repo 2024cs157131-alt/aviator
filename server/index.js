@@ -66,6 +66,20 @@ app.get('/health', (req, res) => res.json({ ok: true, status: appStatus }));
 
 // ── API ROUTES ───────────────────────────────────────────────
 app.use('/api', routes);
+
+// ── API 404 — must come BEFORE the SPA fallback ──────────────
+// If an /api/* route wasn't handled above, return JSON not HTML
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ ok: false, msg: 'API endpoint not found: ' + req.path });
+});
+
+// ── JSON error handler for API routes ───────────────────────
+app.use('/api', (err, req, res, next) => {
+  logger.error('API error:', err);
+  res.status(500).json({ ok: false, msg: 'Server error — check logs' });
+});
+
+// ── SPA fallback — only for non-API routes ───────────────────
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 
 // ── SOCKET.IO ────────────────────────────────────────────────

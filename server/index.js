@@ -73,6 +73,7 @@ app.use('/api', rateLimit({ windowMs: 60000, max: 200, message: { ok: false, msg
 app.use(express.static(path.join(__dirname, '../public')));
 
 // ── HEALTH CHECK — Railway pings this to know app is alive ──
+let appStatus = 'starting';
 app.get('/health', (req, res) => res.json({ ok: true, status: appStatus }));
 
 // ── ROUTES ───────────────────────────────────────────────────
@@ -118,7 +119,6 @@ io.on('connection', async (socket) => {
 
 // ── STARTUP ──────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT) || 3000;
-let appStatus = 'starting';
 
 process.on('SIGTERM', () => {
   logger.info('SIGTERM — shutting down');
@@ -128,7 +128,7 @@ process.on('uncaughtException',  err => logger.error('Uncaught exception:', err)
 process.on('unhandledRejection', err => logger.error('Unhandled rejection:', err));
 
 // ── START HTTP SERVER FIRST so Railway health checks pass ──
-server.listen(PORT, async () => {
+server.listen(PORT, '0.0.0.0', async () => {
   logger.info(`\n🚀 Crown Pesa Aviator — HTTP server listening on port ${PORT}`);
   logger.info(`   Connecting to database...\n`);
 

@@ -8,8 +8,12 @@ const cors       = require('cors');
 const rateLimit  = require('express-rate-limit');
 const path       = require('path');
 
+// ── REDIS SESSION IMPORTS ────────────────────────────────────
+const RedisStore = require('connect-redis').default;
+const { createClient } = require('redis');
+
 const db      = require('./db');
-const redis   = require('./redis');
+const redis   = require('./redis'); // Your internal game redis logic
 const logger  = require('./logger');
 const engine  = require('./game/engine');
 const routes  = require('./auth/routes');
@@ -17,21 +21,32 @@ const routes  = require('./auth/routes');
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, {
-  cors:       { origin: '*', methods: ['GET','POST'] },
-  transports: ['websocket','polling'],
+  cors:        { origin: '*', methods: ['GET','POST'] },
+  transports:  ['websocket','polling'],
   pingTimeout:   60000,
   pingInterval:  25000,
 });
 
+// ── REDIS CLIENT FOR SESSIONS ────────────────────────────────
+const sessionRedisClient = createClient({
+  url: process.env.REDIS_URL || process.env.REDIS_PUBLIC_URL,
+  password: process.env.REDIS_PASSWORD || process.env.REDISPASSWORD
+});
+
+sessionRedisClient.connect().catch((err) => {
+  logger.error('Redis Session Client Connection Error:', err);
+});
+
 // ── SESSION ──────────────────────────────────────────────────
 const sessionMiddleware = session({
-  secret:            process.env.SESSION_SECRET || 'dev_fallback_secret_change_in_prod',
-  resave:            false,
+  store: new RedisStore({ client: sessionRedisClient }),
+  secret: process.env.SESSION_SECRET || 'dev_fallback_secret_change_in_prod',
+  resave: false,
   saveUninitialized: false,
   cookie: {
-    secure:   process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge:   7 * 24 * 60 * 60 * 1000,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
     sameSite: 'lax',
   },
 });

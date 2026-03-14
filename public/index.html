@@ -7,90 +7,113 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
+
+<!-- ═══════════════════════════════════════════════════════════
+     CRITICAL: These stubs must exist BEFORE any HTML renders
+     so onclick="App.openModal(...)" never calls undefined
+     ═══════════════════════════════════════════════════════════ -->
+<script>
+// Stub objects — replaced by real implementations in app.js
+// But stubs ensure NO onclick ever throws "X is not defined"
+var App = {
+  openModal:  function(id){ var m=document.getElementById(id); if(m) m.classList.add('open'); },
+  closeModal: function(id){ var m=document.getElementById(id); if(m) m.classList.remove('open'); },
+  swapModal:  function(a,b){ App.closeModal(a); App.openModal(b); }
+};
+var Auth = {
+  login:    function(){ console.warn('Auth not loaded yet'); },
+  register: function(){ console.warn('Auth not loaded yet'); },
+  logout:   function(){ console.warn('Auth not loaded yet'); }
+};
+var BetPanel = {
+  adj:   function(s,d){ var e=document.getElementById('bet-amt-'+s); if(e) e.value=Math.max(1,parseFloat(e.value||0)+d); },
+  set:   function(s,v){ var e=document.getElementById('bet-amt-'+s); if(e) e.value=v; },
+  dbl:   function(s)  { var e=document.getElementById('bet-amt-'+s); if(e) e.value=parseFloat(e.value||1)*2; },
+  togAc: function(s)  { var c=document.getElementById('ac-'+s); var i=document.getElementById('ao-'+s); if(c&&i) i.disabled=!c.checked; },
+  act:   function(s)  { App.openModal('modal-login'); }
+};
+var Wallet  = { showTab: function(t){} };
+var Sidebar = { show: function(t,el){ if(el){document.querySelectorAll('.sidebar-tab').forEach(function(x){x.classList.remove('active');}); el.classList.add('active');} } };
+</script>
 </head>
 <body>
 
-<!-- ══ NAV ══════════════════════════════════════════════════ -->
+<!-- NAV -->
 <nav class="nav">
   <div class="brand">
     <div class="brand-icon">✈</div>
-    <span>Crown Pesa</span>
+    <span class="brand-name">Crown Pesa</span>
   </div>
   <div class="nav-right">
     <div id="nav-guest" class="nav-auth">
       <button class="btn btn-outline" onclick="App.openModal('modal-login')">LOGIN</button>
       <button class="btn btn-red"     onclick="App.openModal('modal-register')">REGISTER</button>
     </div>
-    <div id="nav-user" class="nav-auth hidden">
-      <span class="balance-chip"><span id="nav-sym">KSh</span><span id="nav-bal">0.00</span></span>
+    <div id="nav-user" class="nav-auth" style="display:none">
+      <span class="balance-chip"><span id="nav-sym">KSh</span> <span id="nav-bal">0.00</span></span>
       <button class="btn btn-green btn-sm" onclick="App.openModal('modal-wallet')">💳 Wallet</button>
-      <a href="#" class="btn btn-outline btn-sm" id="btn-logout">Logout</a>
-      <button class="btn btn-admin btn-sm hidden" id="btn-admin" onclick="App.openModal('modal-admin')">Admin</button>
+      <button class="btn btn-outline btn-sm" id="btn-logout" onclick="Auth.logout()">Logout</button>
+      <button class="btn btn-admin btn-sm" id="btn-admin" style="display:none" onclick="App.openModal('modal-admin')">Admin</button>
     </div>
   </div>
 </nav>
 
-<!-- ══ HISTORY BAR ════════════════════════════════════════ -->
-<div class="history-bar" id="history-bar">
-  <!-- chips injected by JS -->
+<!-- HISTORY BAR -->
+<div class="history-bar" id="history-bar"></div>
+
+<!-- MODE BAR -->
+<div class="mode-bar fun" id="mode-bar">
+  <span id="mode-dot" style="color:#ff8800">●</span>
+  <span id="mode-text">FUN MODE — Register to play</span>
 </div>
 
-<!-- ══ MAIN ══════════════════════════════════════════════════ -->
+<!-- MAIN -->
 <div class="main-layout">
 
-  <!-- ── GAME ── -->
+  <!-- GAME -->
   <div class="game-col">
-
-    <div class="mode-bar fun" id="mode-bar">
-      <span id="mode-dot" style="color:#ff8800">●</span> <span id="mode-text">FUN MODE — Register to play</span>
-    </div>
-
-    <!-- Canvas area -->
     <div class="canvas-wrap" id="canvas-wrap">
       <canvas id="game-canvas"></canvas>
-      <div class="canvas-overlay" id="canvas-overlay">
-        <!-- Multiplier shown during flight -->
+      <div class="canvas-overlay">
         <div class="mult-display hidden" id="mult-display">1.00x</div>
-        <!-- Crash display -->
         <div class="crash-display hidden" id="crash-display">
           <span class="crash-emoji">💥</span>
           <span class="crash-value" id="crash-value">2.50x</span>
           <span class="crash-label">CRASHED</span>
         </div>
       </div>
-      <!-- Plane -->
       <svg class="plane" id="plane" viewBox="0 0 120 52" xmlns="http://www.w3.org/2000/svg">
         <ellipse cx="55" cy="26" rx="52" ry="10" fill="#cc0000"/>
         <path d="M105,26 C115,21 122,26 115,26 C122,26 115,31 105,26Z" fill="#ff4444"/>
-        <polygon points="40,26 72,5 84,26 72,30"  fill="#ee1111"/>
+        <polygon points="40,26 72,5 84,26 72,30" fill="#ee1111"/>
         <polygon points="28,26 50,15 55,26 50,29" fill="#cc0000"/>
-        <polygon points="8,26 20,26 13,9"          fill="#990000"/>
-        <polygon points="4,26 22,26 19,32 5,28"   fill="#990000"/>
-        <ellipse cx="82" cy="21" rx="12" ry="6"   fill="#ff9999" opacity=".6"/>
-        <ellipse cx="5"  cy="26" rx="6"  ry="5"   fill="#ff5500" opacity=".9"/>
-        <ellipse cx="5"  cy="26" rx="3"  ry="3"   fill="#ffdd00"/>
+        <polygon points="8,26 20,26 13,9" fill="#990000"/>
+        <polygon points="4,26 22,26 19,32 5,28" fill="#990000"/>
+        <ellipse cx="82" cy="21" rx="12" ry="6" fill="#ff9999" opacity=".6"/>
+        <ellipse cx="5" cy="26" rx="6" ry="5" fill="#ff5500" opacity=".9"/>
+        <ellipse cx="5" cy="26" rx="3" ry="3" fill="#ffdd00"/>
       </svg>
       <div class="round-label" id="round-label">ROUND #—</div>
     </div>
 
-    <!-- Bet tabs -->
+    <!-- BET TABS -->
     <div class="bet-tabs">
-      <button class="bet-tab active" data-tab="stake">STAKE SELECTOR</button>
-      <button class="bet-tab"        data-tab="auto">AUTO BET</button>
+      <button class="bet-tab active" onclick="switchTab(this,'stake')">STAKE SELECTOR</button>
+      <button class="bet-tab"        onclick="switchTab(this,'auto')">AUTO BET</button>
     </div>
 
-    <!-- Bet panel -->
+    <!-- BET PANEL -->
     <div class="bet-panel">
       <div class="two-bets">
 
         <!-- BET 1 -->
-        <div class="bet-box" id="bet-box-1">
+        <div class="bet-box">
           <div class="bet-box-header">BET 1</div>
           <div class="amount-row">
             <button class="stepper" onclick="BetPanel.adj(1,-10)">−</button>
-            <input type="number" id="bet-amt-1" value="20" min="1">
+            <input  type="number" id="bet-amt-1" value="20" min="1">
             <button class="stepper" onclick="BetPanel.adj(1,10)">+</button>
-            <button class="x2-btn" onclick="BetPanel.dbl(1)">×2</button>
+            <button class="x2-btn"  onclick="BetPanel.dbl(1)">×2</button>
           </div>
           <div class="quick-amts">
             <button onclick="BetPanel.set(1,50)">50</button>
@@ -104,21 +127,19 @@
               <span class="toggle-slider"></span>
             </label>
             <span>AUTO CASH OUT</span>
-            <input type="number" id="ao-1" class="ac-input" value="1.20" step="0.01" min="1.01" disabled>
+            <input type="number" id="ao-1" class="ac-input" value="2.00" step="0.01" min="1.01" disabled>
           </div>
-          <button class="bet-btn idle" id="bet-btn-1" onclick="BetPanel.act(1)">
-            BET
-          </button>
+          <button class="bet-btn idle" id="bet-btn-1" onclick="BetPanel.act(1)">BET</button>
         </div>
 
         <!-- BET 2 -->
-        <div class="bet-box" id="bet-box-2">
+        <div class="bet-box">
           <div class="bet-box-header">BET 2</div>
           <div class="amount-row">
             <button class="stepper" onclick="BetPanel.adj(2,-10)">−</button>
-            <input type="number" id="bet-amt-2" value="20" min="1">
+            <input  type="number" id="bet-amt-2" value="20" min="1">
             <button class="stepper" onclick="BetPanel.adj(2,10)">+</button>
-            <button class="x2-btn" onclick="BetPanel.dbl(2)">×2</button>
+            <button class="x2-btn"  onclick="BetPanel.dbl(2)">×2</button>
           </div>
           <div class="quick-amts">
             <button onclick="BetPanel.set(2,50)">50</button>
@@ -132,19 +153,16 @@
               <span class="toggle-slider"></span>
             </label>
             <span>AUTO CASH OUT</span>
-            <input type="number" id="ao-2" class="ac-input" value="1.20" step="0.01" min="1.01" disabled>
+            <input type="number" id="ao-2" class="ac-input" value="2.00" step="0.01" min="1.01" disabled>
           </div>
-          <button class="bet-btn idle" id="bet-btn-2" onclick="BetPanel.act(2)">
-            BET
-          </button>
+          <button class="bet-btn idle" id="bet-btn-2" onclick="BetPanel.act(2)">BET</button>
         </div>
 
-      </div><!-- .two-bets -->
-    </div><!-- .bet-panel -->
-
+      </div>
+    </div>
   </div><!-- .game-col -->
 
-  <!-- ── SIDEBAR ── -->
+  <!-- SIDEBAR -->
   <div class="sidebar">
     <div class="sidebar-tabs">
       <button class="sidebar-tab active" onclick="Sidebar.show('live',this)">LIVE BETS</button>
@@ -157,98 +175,129 @@
 
 </div><!-- .main-layout -->
 
-<!-- ══ TOAST ══════════════════════════════════════════════════ -->
+<!-- TOASTS -->
 <div class="toast-container" id="toasts"></div>
 
-<!-- ══ MODALS ════════════════════════════════════════════════ -->
+<!-- ══ MODALS ══════════════════════════════════════════════ -->
 
 <!-- LOGIN -->
 <div class="modal-backdrop" id="modal-login">
-<div class="modal">
-  <button class="modal-close" onclick="App.closeModal('modal-login')">✕</button>
-  <h2>LOGIN</h2>
-  <div class="form-alert hidden" id="login-alert"></div>
-  <div class="form-group"><label>Email</label><input type="email"     id="li-email" placeholder="your@email.com"></div>
-  <div class="form-group"><label>Password</label><input type="password" id="li-pass"  placeholder="••••••••"></div>
-  <button class="form-submit" id="li-btn" onclick="Auth.login()">LOGIN</button>
-  <p class="form-switch">No account? <a onclick="App.swapModal('modal-login','modal-register')">Register</a></p>
-</div>
+  <div class="modal">
+    <button class="modal-close" onclick="App.closeModal('modal-login')">✕</button>
+    <h2>LOGIN</h2>
+    <div class="form-alert" id="login-alert" style="display:none"></div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="li-email" placeholder="your@email.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="li-pass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="form-submit" id="li-btn" onclick="Auth.login()">LOGIN</button>
+    <p class="form-switch">No account? <a href="#" onclick="App.swapModal('modal-login','modal-register');return false;">Register</a></p>
+  </div>
 </div>
 
 <!-- REGISTER -->
 <div class="modal-backdrop" id="modal-register">
-<div class="modal">
-  <button class="modal-close" onclick="App.closeModal('modal-register')">✕</button>
-  <h2>CREATE ACCOUNT</h2>
-  <div class="form-alert hidden" id="reg-alert"></div>
-  <div class="form-group"><label>Username</label><input type="text"     id="reg-user" placeholder="coolplayer" autocomplete="off"></div>
-  <div class="form-group"><label>Email</label>   <input type="email"    id="reg-email" placeholder="your@email.com"></div>
-  <div class="form-group"><label>Password</label><input type="password" id="reg-pass" placeholder="min 8 characters"></div>
-  <div class="form-group"><label>Country</label>
-    <select id="reg-country">
-      <option value="KE">🇰🇪 Kenya (KES)</option>
-      <option value="NG">🇳🇬 Nigeria (NGN)</option>
-      <option value="GH">🇬🇭 Ghana (GHS)</option>
-      <option value="ZA">🇿🇦 South Africa (ZAR)</option>
-      <option value="UG">🇺🇬 Uganda (UGX)</option>
-      <option value="TZ">🇹🇿 Tanzania (TZS)</option>
-      <option value="US">🇺🇸 United States (USD)</option>
-      <option value="GB">🇬🇧 United Kingdom (GBP)</option>
-    </select>
+  <div class="modal">
+    <button class="modal-close" onclick="App.closeModal('modal-register')">✕</button>
+    <h2>CREATE ACCOUNT</h2>
+    <div class="form-alert" id="reg-alert" style="display:none"></div>
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" id="reg-user" placeholder="e.g. JohnKipngetich" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="reg-email" placeholder="your@email.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label>Password <small style="color:#888">(min 8 characters)</small></label>
+      <input type="password" id="reg-pass" placeholder="min 8 characters" autocomplete="new-password">
+    </div>
+    <div class="form-group">
+      <label>Country</label>
+      <select id="reg-country">
+        <option value="KE">🇰🇪 Kenya (KES)</option>
+        <option value="NG">🇳🇬 Nigeria (NGN)</option>
+        <option value="GH">🇬🇭 Ghana (GHS)</option>
+        <option value="ZA">🇿🇦 South Africa (ZAR)</option>
+        <option value="UG">🇺🇬 Uganda (UGX)</option>
+        <option value="TZ">🇹🇿 Tanzania (TZS)</option>
+        <option value="US">🇺🇸 United States (USD)</option>
+        <option value="GB">🇬🇧 United Kingdom (GBP)</option>
+      </select>
+    </div>
+    <button class="form-submit" id="reg-btn" onclick="Auth.register()">CREATE ACCOUNT</button>
+    <p class="form-switch">Have account? <a href="#" onclick="App.swapModal('modal-register','modal-login');return false;">Login</a></p>
   </div>
-  <button class="form-submit" id="reg-btn" onclick="Auth.register()">CREATE ACCOUNT</button>
-  <p class="form-switch">Have account? <a onclick="App.swapModal('modal-register','modal-login')">Login</a></p>
-</div>
 </div>
 
 <!-- WALLET -->
 <div class="modal-backdrop" id="modal-wallet">
-<div class="modal">
-  <button class="modal-close" onclick="App.closeModal('modal-wallet')">✕</button>
-  <h2>💳 WALLET</h2>
-  <div class="wallet-balance">
-    <div class="wallet-amount"><span id="w-sym">KSh</span><span id="w-bal">0.00</span></div>
-    <div class="wallet-label">Available Balance</div>
-  </div>
-  <div class="wallet-actions">
-    <button class="btn btn-green" onclick="Wallet.showTab('dep')">+ DEPOSIT</button>
-    <button class="btn btn-outline" onclick="Wallet.showTab('wit')">− WITHDRAW</button>
-  </div>
-  <div id="w-dep" class="wallet-tab hidden">
-    <div class="form-alert hidden" id="dep-alert"></div>
-    <div class="form-group"><label>Amount</label><input type="number" id="dep-amt" placeholder="Min deposit"></div>
-    <div class="quick-amts" style="margin-bottom:14px">
-      <button onclick="document.getElementById('dep-amt').value=500">500</button>
-      <button onclick="document.getElementById('dep-amt').value=1000">1,000</button>
-      <button onclick="document.getElementById('dep-amt').value=2000">2,000</button>
-      <button onclick="document.getElementById('dep-amt').value=5000">5,000</button>
+  <div class="modal">
+    <button class="modal-close" onclick="App.closeModal('modal-wallet')">✕</button>
+    <h2>💳 WALLET</h2>
+    <div class="wallet-balance">
+      <div class="wallet-amount"><span id="w-sym">KSh</span> <span id="w-bal">0.00</span></div>
+      <div class="wallet-label">Available Balance</div>
     </div>
-    <button class="form-submit" id="dep-btn" onclick="Wallet.deposit()">PAY WITH PAYSTACK</button>
+    <div class="wallet-actions">
+      <button class="btn btn-green" onclick="Wallet.showTab('dep')">＋ DEPOSIT</button>
+      <button class="btn btn-outline" onclick="Wallet.showTab('wit')">－ WITHDRAW</button>
+    </div>
+    <div id="w-dep" style="display:none;margin-top:16px">
+      <div class="form-alert" id="dep-alert" style="display:none"></div>
+      <div class="form-group"><label>Amount</label><input type="number" id="dep-amt" placeholder="Enter amount"></div>
+      <div class="quick-amts" style="margin-bottom:14px">
+        <button onclick="document.getElementById('dep-amt').value=500">500</button>
+        <button onclick="document.getElementById('dep-amt').value=1000">1,000</button>
+        <button onclick="document.getElementById('dep-amt').value=2000">2,000</button>
+        <button onclick="document.getElementById('dep-amt').value=5000">5,000</button>
+      </div>
+      <button class="form-submit" id="dep-btn" onclick="Wallet.deposit()">PAY WITH PAYSTACK</button>
+    </div>
+    <div id="w-wit" style="display:none;margin-top:16px">
+      <div class="form-alert" id="wit-alert" style="display:none"></div>
+      <div class="form-group"><label>Amount</label><input type="number" id="wit-amt"></div>
+      <div class="form-group"><label>Bank / Mobile Money</label><select id="wit-bank"></select></div>
+      <div class="form-group"><label>Account / Phone Number</label><input type="text" id="wit-acct" placeholder="e.g. 0712345678"></div>
+      <div class="form-group"><label>Account Name</label><input type="text" id="wit-name" placeholder="Full name"></div>
+      <button class="form-submit" id="wit-btn" onclick="Wallet.withdraw()">SUBMIT WITHDRAWAL</button>
+    </div>
   </div>
-  <div id="w-wit" class="wallet-tab hidden">
-    <div class="form-alert hidden" id="wit-alert"></div>
-    <div class="form-group"><label>Amount</label><input type="number" id="wit-amt"></div>
-    <div class="form-group"><label>Bank / Mobile</label><select id="wit-bank"></select></div>
-    <div class="form-group"><label>Account / Phone</label><input type="text" id="wit-acct" placeholder="Number"></div>
-    <div class="form-group"><label>Account Name</label><input type="text" id="wit-name" placeholder="Full name"></div>
-    <button class="form-submit" id="wit-btn" onclick="Wallet.withdraw()">SUBMIT WITHDRAWAL</button>
-  </div>
-</div>
 </div>
 
 <!-- ADMIN -->
 <div class="modal-backdrop" id="modal-admin">
-<div class="modal modal-wide">
-  <button class="modal-close" onclick="App.closeModal('modal-admin')">✕</button>
-  <h2>⚙️ Admin Panel</h2>
-  <div id="admin-content"><p style="color:#888">Loading...</p></div>
-</div>
+  <div class="modal modal-wide">
+    <button class="modal-close" onclick="App.closeModal('modal-admin')">✕</button>
+    <h2>⚙️ Admin Panel</h2>
+    <div id="admin-content"><p style="color:#666;padding:12px">Loading...</p></div>
+  </div>
 </div>
 
-<!-- ══ SCRIPTS ════════════════════════════════════════════════ -->
-<script src="/socket.io/socket.io.js"></script>
-<script src="https://js.paystack.co/v1/inline.js"></script>
-<script src="/js/canvas.js"></script>
-<script src="/js/app.js"></script>
+<!-- ══ SCRIPTS — loaded with defer so they never block ════ -->
+<script src="/socket.io/socket.io.js" defer></script>
+<script src="https://js.paystack.co/v1/inline.js" defer></script>
+<script src="/js/canvas.js" defer></script>
+<script src="/js/app.js"    defer></script>
+
+<!-- Bet tab switcher — simple, no dependencies -->
+<script>
+function switchTab(btn, tab) {
+  document.querySelectorAll('.bet-tab').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+}
+// Close modal when clicking backdrop
+document.addEventListener('click', function(e) {
+  if (e.target && e.target.classList && e.target.classList.contains('modal-backdrop')) {
+    e.target.classList.remove('open');
+  }
+});
+</script>
+
 </body>
 </html>

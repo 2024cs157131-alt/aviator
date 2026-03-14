@@ -82,7 +82,9 @@ body { font-family: var(--fn); background: var(--bg); color: var(--text);
 .h-chip {
   padding: 3px 9px; border-radius: 12px; flex-shrink: 0;
   font-family: var(--fnum); font-size: .7rem; font-weight: 700; cursor: default;
+  animation: chipIn .4s ease;
 }
+@keyframes chipIn { from { opacity:0; transform:scale(.7); } to { opacity:1; transform:scale(1); } }
 .h-low  { background: #3a0000; color: #ff6666; }
 .h-mid  { background: #1a2600; color: #88cc44; }
 .h-high { background: #002a3a; color: #44ccff; }
@@ -238,6 +240,7 @@ body { font-family: var(--fn); background: var(--bg); color: var(--text);
 .bet-btn.placed   { background: #003300; border: 2px solid var(--green); color: var(--green); cursor: default; }
 .bet-btn.cashout  { background: var(--gold); color: #000; animation: goldPulse 1s infinite; }
 .bet-btn.loading  { background: #333; color: #666; cursor: not-allowed; }
+.bet-btn.inactive { background: #1a0000; color: #552222; border: 1px solid #330000; cursor: not-allowed; opacity: 0.5; }
 @keyframes goldPulse {
   0%,100%{box-shadow:0 0 5px rgba(255,170,0,.3)}
   50%{box-shadow:0 0 18px rgba(255,170,0,.8)}
@@ -307,6 +310,7 @@ body { font-family: var(--fn); background: var(--bg); color: var(--text);
 }
 .form-alert.error   { display:block; background: #2a0000; border: 1px solid #660000; color: #ff9999; }
 .form-alert.success { display:block; background: #002200; border: 1px solid #004400; color: #99ff99; }
+.form-alert.info    { display:block; background: #001a33; border: 1px solid #003366; color: #88ccff; }
 
 /* Wallet */
 .wallet-balance { text-align:center; padding:16px; background:#0a0a18; border-radius:8px; margin-bottom:12px; }
@@ -502,7 +506,7 @@ var Sidebar = { show: function(t,btn){
 }};
 function gv(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
 function setBtn(id,dis,txt){ var b=document.getElementById(id); if(b){b.disabled=dis;b.textContent=txt;} else { console.warn('[setBtn] Button not found:', id); } }
-function showFmAlert(id,msg){ var e=document.getElementById(id); if(e){e.textContent=msg;e.className='form-alert error';e.style.display='block';} else { console.warn('[showFmAlert] Alert element not found:', id); } }
+function showFmAlert(id,msg,type){ var e=document.getElementById(id); if(e){e.textContent=msg;e.className='form-alert '+(type||'error');e.style.display='block';} else { console.warn('[showFmAlert] Alert element not found:', id); } }
 function hideAlert(id){ var e=document.getElementById(id); if(e) e.style.display='none'; }
 // ── GLOBAL ERROR CATCHER ─────────────────────────────────────
 window.onerror = function(msg, src, line, col, err) {
@@ -632,8 +636,10 @@ document.addEventListener('click',function(e){
 
   <div class="sidebar">
     <div class="sidebar-tabs">
-      <button class="sidebar-tab active" onclick="Sidebar.show('live',this)">LIVE BETS</button>
+      <button class="sidebar-tab active" onclick="Sidebar.show('live',this)">LIVE</button>
       <button class="sidebar-tab"        onclick="Sidebar.show('my',this)">MY BETS</button>
+      <button class="sidebar-tab"        onclick="Sidebar.show('leaders',this)">TOP</button>
+      <button class="sidebar-tab"        onclick="Sidebar.show('txns',this)">HISTORY</button>
     </div>
     <div class="sidebar-body" id="sidebar-body"><p class="empty-msg">Waiting for round...</p></div>
   </div>
@@ -1074,11 +1080,11 @@ window.Canvas = (function() {
     [1, 2].forEach(function(s) {
       var bs = betState[s];
       if (phase === 'waiting') {
-        if (!bs)             setBetBtn(s, 'idle',    'BET');
-        if (bs === 'placed') setBetBtn(s, 'placed',  '✓ PLACED');
+        if (!bs)             setBetBtn(s, 'idle',     'BET');
+        if (bs === 'placed') setBetBtn(s, 'placed',   '✓ PLACED');
       } else if (phase === 'flying') {
-        if (bs === 'placed') setBetBtn(s, 'cashout', 'CASH OUT');
-        if (!bs)             setBetBtn(s, 'idle',    'BET');
+        if (bs === 'placed') setBetBtn(s, 'cashout',  'CASH OUT');
+        if (!bs)             setBetBtn(s, 'inactive', 'WAIT...');   // faded — can't bet mid-round
       } else {
         if (!bs) setBetBtn(s, 'idle', 'BET');
       }
@@ -1093,10 +1099,29 @@ window.Canvas = (function() {
 
   function renderHistoryBar(rounds) {
     var bar = g('history-bar'); if (!bar || !rounds) return;
+    // Save to sessionStorage so chips survive page interactions
+    try { sessionStorage.setItem('cp_history', JSON.stringify(rounds.slice(0,20))); } catch(e){}
     bar.innerHTML = rounds.map(function(r) {
       return '<span class="' + chipClass(r.crash_point) + '">' + parseFloat(r.crash_point).toFixed(2) + 'x</span>';
     }).join('');
   }
+
+  // Restore history chips immediately from sessionStorage (before WS connects)
+  (function restoreHistory() {
+    try {
+      var saved = sessionStorage.getItem('cp_history');
+      if (saved) {
+        var rounds = JSON.parse(saved);
+        var bar = g('history-bar');
+        if (bar && rounds.length) {
+          bar.innerHTML = rounds.map(function(r) {
+            return '<span class="' + chipClass(r.crash_point) + '" style="animation:none">'
+              + parseFloat(r.crash_point).toFixed(2) + 'x</span>';
+          }).join('');
+        }
+      }
+    } catch(e) {}
+  })();
 
   function addHistoryChip(cp) {
     var bar = g('history-bar'); if (!bar) return;
@@ -1364,28 +1389,69 @@ window.Canvas = (function() {
     },
     deposit: function() {
       var amt = g('dep-amt') ? parseFloat(g('dep-amt').value) : 0;
-      if (!amt || amt <= 0) { showAlert('dep-alert','Enter a valid amount'); return; }
+      if (!amt || amt <= 0) { showAlert('dep-alert', 'Enter a valid amount'); return; }
+      if (!currentUser || !currentUser.email) { showAlert('dep-alert', 'Please log in first'); return; }
+
       var btn = g('dep-btn');
       if (btn) { btn.disabled = true; btn.textContent = 'Initializing…'; }
+
       httpPost('/api/deposit/init', { amount: amt }, function(d) {
+        console.log('[Deposit] init response:', JSON.stringify(d));
         if (btn) { btn.disabled = false; btn.textContent = 'PAY WITH PAYSTACK'; }
-        if (d.ok && d.url && typeof PaystackPop !== 'undefined') {
-          PaystackPop.setup({
-            key:      PAYSTACK_KEY,
-            email:    currentUser ? currentUser.email : '',
-            amount:   Math.round(amt * 100),
-            currency: currentUser && currentUser.currency ? currentUser.currency.code : 'KES',
-            ref:      d.reference,
-            callback: function(resp) {
-              httpGet('/api/deposit/verify/'+resp.reference, function(v) {
-                if (v.ok) { toast('Deposit successful!','ok'); currentUser.balance=v.newBalance; updateBalanceUI(); window.App.closeModal('modal-wallet'); }
-                else        toast(v.msg||'Verification failed','err');
-              });
-            },
-            onClose: function(){}
-          }).openIframe();
-        } else {
+
+        if (!d.ok) {
           showAlert('dep-alert', d.msg || 'Payment initialization failed');
+          return;
+        }
+
+        if (!d.url) {
+          showAlert('dep-alert', 'No payment URL returned — check Paystack keys in Railway Variables');
+          return;
+        }
+
+        // Store reference so we can verify when user returns
+        sessionStorage.setItem('ps_ref', d.reference);
+        sessionStorage.setItem('ps_amt', String(amt));
+
+        // Try PaystackPop inline first, fall back to redirect
+        if (typeof PaystackPop !== 'undefined' && PAYSTACK_KEY) {
+          console.log('[Deposit] Opening Paystack popup. Key prefix:', PAYSTACK_KEY.substring(0,10));
+          try {
+            var handler = PaystackPop.setup({
+              key:      PAYSTACK_KEY,
+              email:    currentUser.email,
+              amount:   Math.round(amt * 100),
+              currency: (currentUser.currency && currentUser.currency.code) || 'KES',
+              ref:      d.reference,
+              callback: function(resp) {
+                console.log('[Deposit] Paystack callback, ref:', resp.reference);
+                httpGet('/api/deposit/verify/' + resp.reference, function(v) {
+                  console.log('[Deposit] Verify response:', JSON.stringify(v));
+                  if (v.ok) {
+                    toast('✅ Deposit of ' + (currentUser.currency.sym||'') + amt + ' successful!', 'ok');
+                    if (currentUser) currentUser.balance = v.newBalance;
+                    updateBalanceUI();
+                    window.App.closeModal('modal-wallet');
+                    sessionStorage.removeItem('ps_ref');
+                  } else {
+                    toast(v.msg || 'Verification failed', 'err');
+                  }
+                });
+              },
+              onClose: function() {
+                console.log('[Deposit] Paystack popup closed by user');
+              }
+            });
+            handler.openIframe();
+          } catch(e) {
+            console.error('[Deposit] PaystackPop error:', e.message, '— falling back to redirect');
+            window.open(d.url, '_blank');
+          }
+        } else {
+          // Fallback: open Paystack page in new tab
+          console.log('[Deposit] PaystackPop not available — opening URL in new tab');
+          showAlert('dep-alert', 'Opening Paystack in a new tab. Return here after payment to verify.', 'info');
+          window.open(d.url, '_blank');
         }
       });
     },
@@ -1410,15 +1476,92 @@ window.Canvas = (function() {
       document.querySelectorAll('.sidebar-tab').forEach(function(b){ b.classList.remove('active'); });
       if (btn) btn.classList.add('active');
       var body = g('sidebar-body'); if (!body) return;
-      if (tab === 'my') {
-        body.innerHTML = currentUser
-          ? '<p class="empty-msg">Bet history coming soon.</p>'
-          : '<p class="empty-msg">Login to see your bets.</p>';
-      } else {
+
+      if (tab === 'live') {
         var keys = Object.keys(liveBets);
         body.innerHTML = keys.length
           ? keys.map(function(k){ return liveBets[k].outerHTML; }).join('')
           : '<p class="empty-msg">Waiting for round...</p>';
+
+      } else if (tab === 'my') {
+        if (!currentUser) { body.innerHTML = '<p class="empty-msg">Login to see your bets.</p>'; return; }
+        body.innerHTML = '<p class="empty-msg" style="font-size:.7rem">Loading...</p>';
+        httpGet('/api/user/bet-history', function(d) {
+          if (!d.ok || !d.bets || !d.bets.length) {
+            body.innerHTML = '<p class="empty-msg">No bets yet.</p>'; return;
+          }
+          var html = '<table style="width:100%;font-size:.72rem;border-collapse:collapse">'
+            + '<thead><tr>'
+            + '<th style="padding:5px 4px;color:var(--muted);text-align:left">Round</th>'
+            + '<th style="padding:5px 4px;color:var(--muted);text-align:right">Bet</th>'
+            + '<th style="padding:5px 4px;color:var(--muted);text-align:right">Result</th>'
+            + '</tr></thead><tbody>';
+          d.bets.forEach(function(b) {
+            var won = b.status === 'won';
+            var resultColor = won ? 'var(--green)' : '#ff6666';
+            var result = won ? '+' + parseFloat(b.profit).toFixed(2) + ' @ ' + parseFloat(b.cashout_at).toFixed(2) + 'x' : 'Lost';
+            html += '<tr style="border-bottom:1px solid #111">'
+              + '<td style="padding:5px 4px;color:#aaa">#' + b.round_id + '</td>'
+              + '<td style="padding:5px 4px;text-align:right;color:var(--gold)">' + parseFloat(b.amount).toFixed(2) + '</td>'
+              + '<td style="padding:5px 4px;text-align:right;color:' + resultColor + '">' + result + '</td>'
+              + '</tr>';
+          });
+          html += '</tbody></table>';
+          body.innerHTML = html;
+        });
+
+      } else if (tab === 'leaders') {
+        body.innerHTML = '<p class="empty-msg" style="font-size:.7rem">Loading...</p>';
+        httpGet('/api/leaderboard', function(d) {
+          if (!d.ok || !d.leaders || !d.leaders.length) {
+            body.innerHTML = '<p class="empty-msg">No data yet.</p>'; return;
+          }
+          var html = '<div style="padding:4px 0">';
+          d.leaders.forEach(function(p, i) {
+            var medal = i === 0 ? '&#127945;' : i === 1 ? '&#129352;' : i === 2 ? '&#129353;' : (i+1)+'.';
+            var profitColor = p.net_profit >= 0 ? 'var(--green)' : '#ff6666';
+            html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid #111">'
+              + '<span style="font-size:.8rem;width:22px;flex-shrink:0;text-align:center">' + medal + '</span>'
+              + '<div style="flex:1;min-width:0"><div style="font-size:.78rem;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + p.username + '</div>'
+              + '<div style="font-size:.68rem;color:var(--muted)">' + p.total_bets + ' bets &middot; avg ' + parseFloat(p.avg_cashout||0).toFixed(2) + 'x</div></div>'
+              + '<div style="font-size:.75rem;font-family:var(--fnum);color:' + profitColor + ';flex-shrink:0">'
+              + (p.net_profit >= 0 ? '+' : '') + parseFloat(p.net_profit).toFixed(0) + '</div>'
+              + '</div>';
+          });
+          html += '</div>';
+          body.innerHTML = html;
+        });
+
+      } else if (tab === 'txns') {
+        if (!currentUser) { body.innerHTML = '<p class="empty-msg">Login to see history.</p>'; return; }
+        body.innerHTML = '<p class="empty-msg" style="font-size:.7rem">Loading...</p>';
+        httpGet('/api/user/transactions', function(d) {
+          if (!d.ok || !d.transactions || !d.transactions.length) {
+            body.innerHTML = '<p class="empty-msg">No transactions yet.</p>'; return;
+          }
+          var html = '<div style="padding:4px 0">';
+          d.transactions.forEach(function(t) {
+            var typeColors = { deposit:'var(--green)', win:'var(--green)', withdrawal:'#ff8800', bet:'#ff6666', adjustment:'#88ccff' };
+            var color = typeColors[t.type] || '#aaa';
+            var sign  = (t.type==='deposit'||t.type==='win') ? '+' : '-';
+            var dt    = new Date(t.created_at);
+            var dateStr = dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) + ' ' + dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+            html += '<div style="display:flex;align-items:center;gap:6px;padding:7px 4px;border-bottom:1px solid #111">'
+              + '<div style="flex:1;min-width:0">'
+              + '<div style="font-size:.76rem;color:#ddd;text-transform:capitalize">' + t.type + '</div>'
+              + '<div style="font-size:.66rem;color:var(--muted)">' + dateStr + '</div></div>'
+              + '<div style="font-size:.76rem;font-family:var(--fnum);color:' + color + ';flex-shrink:0">'
+              + sign + parseFloat(t.amount).toFixed(2) + ' <span style="font-size:.62rem;color:var(--muted)">' + (t.currency_code||'') + '</span>'
+              + '</div>'
+              + '<span style="font-size:.65rem;padding:1px 5px;border-radius:3px;background:'
+              + (t.status==='completed'?'#002200':t.status==='pending'?'#221100':'#220000')
+              + ';color:'+(t.status==='completed'?'#66cc66':t.status==='pending'?'#ffaa00':'#ff6666')+'">'
+              + t.status + '</span>'
+              + '</div>';
+          });
+          html += '</div>';
+          body.innerHTML = html;
+        });
       }
     }
   };
@@ -1523,9 +1666,22 @@ window.Canvas = (function() {
   };
 
   window.adminWithdrawal = function(id, action) {
-    httpPost('/api/admin/withdrawal/'+action,{txId:id},function(r){
-      toast(r.ok?'Done':(r.msg||'Error'), r.ok?'ok':'err');
-      window.loadAdminPanel();
+    httpPost('/api/admin/withdrawal/'+action, {txId:id}, function(r) {
+      if (r.ok) {
+        toast((action==='approve'?'✅ Withdrawal approved':'❌ Withdrawal rejected'), 'ok');
+        // Remove the row from the table immediately — no reload needed
+        var btns = document.querySelectorAll('[onclick*="adminWithdrawal('+id+',"]');
+        btns.forEach(function(b) {
+          var row = b.closest('tr');
+          if (row) {
+            row.style.opacity = '0';
+            row.style.transition = 'opacity .3s';
+            setTimeout(function(){ if(row.parentNode) row.parentNode.removeChild(row); }, 320);
+          }
+        });
+      } else {
+        toast(r.msg || 'Error', 'err');
+      }
     });
   };
 

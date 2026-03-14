@@ -348,6 +348,69 @@ router.get('/history', async (req, res) => {
   res.json({ ok: true, rounds: rows });
 });
 
+// ── LEADERBOARD ───────────────────────────────────────────────
+router.get('/leaderboard', async (req, res) => {
+  try {
+    const leaders = await db.query(`
+      SELECT
+        u.username,
+        COUNT(b.id)                                          AS total_bets,
+        COALESCE(SUM(CASE WHEN b.status='won'  THEN b.profit ELSE 0 END), 0)     AS total_won,
+        COALESCE(SUM(CASE WHEN b.status='lost' THEN ABS(b.profit) ELSE 0 END),0) AS total_lost,
+        COALESCE(SUM(CASE WHEN b.status='won'  THEN b.profit ELSE 0 END), 0)
+          - COALESCE(SUM(CASE WHEN b.status='lost' THEN ABS(b.profit) ELSE 0 END),0) AS net_profit,
+        AVG(CASE WHEN b.cashout_at IS NOT NULL THEN b.cashout_at END)            AS avg_cashout
+      FROM bets b
+      JOIN users u ON b.user_id = u.id
+      WHERE b.status IN ('won','lost')
+      GROUP BY u.id, u.username
+      ORDER BY net_profit DESC
+      LIMIT 20
+    `);
+    res.json({ ok: true, leaders });
+  } catch(e) {
+    res.json({ ok: false, msg: e.message });
+  }
+});
+
+// ── USER BET HISTORY ─────────────────────────────────────────
+router.get('/user/bet-history', async (req, res) => {
+  if (!req.session.userId) return res.json({ ok: false, msg: 'Login required' });
+  try {
+    const bets = await db.query(
+      `SELECT b.id, b.round_id, b.amount, b.cashout_at, b.profit, b.status, b.created_at,
+              r.crash_point
+       FROM bets b
+       LEFT JOIN rounds r ON b.round_id = r.id
+       WHERE b.user_id = ?
+       ORDER BY b.created_at DESC
+       LIMIT 50`,
+      [req.session.userId]
+    );
+    res.json({ ok: true, bets });
+  } catch(e) {
+    res.json({ ok: false, msg: e.message });
+  }
+});
+
+// ── USER TRANSACTION HISTORY ──────────────────────────────────
+router.get('/user/transactions', async (req, res) => {
+  if (!req.session.userId) return res.json({ ok: false, msg: 'Login required' });
+  try {
+    const transactions = await db.query(
+      `SELECT id, type, amount, currency_code, status, reference, created_at
+       FROM transactions
+       WHERE user_id = ?
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [req.session.userId]
+    );
+    res.json({ ok: true, transactions });
+  } catch(e) {
+    res.json({ ok: false, msg: e.message });
+  }
+});
+
 // ── RESPONSIBLE GAMING ───────────────────────────────────────
 
 router.post('/rg/set-limits', apiLimiter, async (req, res) => {
@@ -396,7 +459,7 @@ router.get('/admin/stats', requireAdmin, async (req, res) => {
       db.one("SELECT COALESCE(SUM(amount),0) s FROM transactions WHERE type='deposit' AND status='completed'"),
       db.one("SELECT COALESCE(SUM(amount),0) s FROM bets"),
       db.one("SELECT COUNT(*) c FROM rounds WHERE status='crashed'"),
-      db.query("SELECT t.*,u.username,u.country_code FROM transactions t JOIN users u ON t.user_id=u.id WHERE t.type='withdrawal' AND t.status='pending' ORDER BY t.created_at DESC LIMIT 50"),
+      db.query("SELECT t.*,u.username,u.country_code FROM transactions t JOIN users u ON t.user_id=u.id WHERE t.type='withdrawal' AND t.status='pending' ORDER BY t.created_at DESC LIMIT 100"),
       db.query("SELECT f.*,u.username FROM fraud_events f JOIN users u ON f.user_id=u.id WHERE f.resolved=0 ORDER BY f.created_at DESC LIMIT 20"),
     ]);
 

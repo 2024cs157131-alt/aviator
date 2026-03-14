@@ -571,6 +571,14 @@ function setAlert(id, msg, type) {
   el.classList.remove('hidden');
 }
 
+// ── EXPOSE GLOBALS IMMEDIATELY so onclick handlers work ────────
+// Must be at top level — NOT inside async function
+window.App      = App;
+window.Auth     = Auth;
+window.BetPanel = BetPanel;
+window.Wallet   = Wallet;
+window.Sidebar  = Sidebar;
+
 // ── BOOT ─────────────────────────────────────────────────────
 (async () => {
   // Check if already logged in
@@ -583,13 +591,6 @@ function setAlert(id, msg, type) {
     const config = await get('/api/config');
     if (config?.paystackKey) PAYSTACK_PUBLIC_KEY = config.paystackKey;
   }
-
-  // Inject bet panel controls
-  window.BetPanel = BetPanel;
-  window.Sidebar  = Sidebar;
-  window.Auth     = Auth;
-  window.Wallet   = Wallet;
-  window.App      = App;
 
   connectSocket();
 })();

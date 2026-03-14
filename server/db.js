@@ -111,7 +111,8 @@ async function install() {
 
   for (const stmt of statements) {
     try {
-      await pool.execute(stmt);
+      // Changed from execute() to query() to properly handle raw CREATE TABLE schema definitions
+      await pool.query(stmt);
     } catch (e) {
       if (!e.message.includes('already exists') && !e.message.includes('Duplicate')) {
         logger.warn('Schema note:', e.message.substring(0, 120));

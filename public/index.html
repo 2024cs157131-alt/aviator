@@ -406,42 +406,74 @@ body { font-family: var(--fn); background: var(--bg); color: var(--text);
 <!-- CRITICAL: Stub globals in <head> so onclick never calls undefined -->
 <script>
 var App = {
-  openModal:  function(id){ var m=document.getElementById(id); if(m) m.classList.add('open'); },
-  closeModal: function(id){ var m=document.getElementById(id); if(m) m.classList.remove('open'); },
-  swapModal:  function(a,b){ App.closeModal(a); App.openModal(b); }
+  openModal: function(id) {
+    console.log('[App] openModal called:', id);
+    var m = document.getElementById(id);
+    if (m) { m.classList.add('open'); console.log('[App] Modal opened:', id); }
+    else    { console.error('[App] Modal element NOT FOUND:', id); }
+  },
+  closeModal: function(id) {
+    console.log('[App] closeModal called:', id);
+    var m = document.getElementById(id);
+    if (m) m.classList.remove('open');
+  },
+  swapModal: function(a, b) {
+    console.log('[App] swapModal:', a, '->', b);
+    App.closeModal(a); App.openModal(b);
+  }
 };
 // Auth, BetPanel, Wallet, Sidebar are fully defined here in <head>
 // app.js OVERWRITES these with real implementations after loading
 // This means buttons work immediately AND get real functionality once JS loads
 var Auth = {
   login: function() {
-    var e=document.getElementById('li-email'),p=document.getElementById('li-pass');
+    console.log('[Auth.login] Called');
+    var e=document.getElementById('li-email'), p=document.getElementById('li-pass');
     var email=e?e.value.trim():'', pass=p?p.value:'';
-    if(!email||!pass){ showFmAlert('login-alert','Email and password required'); return; }
+    console.log('[Auth.login] Email:', email, '| Pass length:', pass.length);
+    if(!email||!pass){ showFmAlert('login-alert','Email and password required'); console.warn('[Auth.login] Validation failed - missing fields'); return; }
     setBtn('li-btn',true,'Logging in...');
+    console.log('[Auth.login] Sending POST /api/login...');
     fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})})
-    .then(function(r){return r.json();})
+    .then(function(r){
+      console.log('[Auth.login] Response status:', r.status, '| Content-Type:', r.headers.get('content-type'));
+      if(!r.headers.get('content-type').includes('json')){
+        return r.text().then(function(t){ console.error('[Auth.login] Server returned HTML not JSON. First 200 chars:', t.substring(0,200)); throw new Error('Server returned HTML'); });
+      }
+      return r.json();
+    })
     .then(function(d){
+      console.log('[Auth.login] Response JSON:', JSON.stringify(d));
       setBtn('li-btn',false,'LOGIN');
-      if(d.ok){ window.location.reload(); }
+      if(d.ok){ console.log('[Auth.login] SUCCESS - reloading'); window.location.reload(); }
       else { showFmAlert('login-alert', d.msg||'Login failed'); }
-    }).catch(function(){ setBtn('li-btn',false,'LOGIN'); showFmAlert('login-alert','Server error — try again'); });
+    }).catch(function(err){ console.error('[Auth.login] CATCH ERROR:', err.message); setBtn('li-btn',false,'LOGIN'); showFmAlert('login-alert','Server error: '+err.message); });
   },
   register: function() {
+    console.log('[Auth.register] Called');
     var u=gv('reg-user'),e=gv('reg-email'),p=gv('reg-pass'),c=gv('reg-country');
+    console.log('[Auth.register] Fields - user:', u, '| email:', e, '| passLen:', p.length, '| country:', c);
     hideAlert('reg-alert');
-    if(!u||!e||!p){ showFmAlert('reg-alert','All fields are required'); return; }
-    if(u.length<3){ showFmAlert('reg-alert','Username must be at least 3 characters'); return; }
-    if(p.length<8){ showFmAlert('reg-alert','Password must be at least 8 characters'); return; }
-    if(e.indexOf('@')<1){ showFmAlert('reg-alert','Enter a valid email address'); return; }
+    if(!u||!e||!p){ showFmAlert('reg-alert','All fields are required'); console.warn('[Auth.register] Validation fail: empty fields'); return; }
+    if(u.length<3){ showFmAlert('reg-alert','Username must be at least 3 characters'); console.warn('[Auth.register] Validation fail: username too short'); return; }
+    if(p.length<8){ showFmAlert('reg-alert','Password must be at least 8 characters'); console.warn('[Auth.register] Validation fail: password too short'); return; }
+    if(e.indexOf('@')<1){ showFmAlert('reg-alert','Enter a valid email address'); console.warn('[Auth.register] Validation fail: bad email'); return; }
     setBtn('reg-btn',true,'Creating account...');
+    console.log('[Auth.register] Sending POST /api/register...');
     fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:e,password:p,country:c})})
-    .then(function(r){return r.json();})
+    .then(function(r){
+      console.log('[Auth.register] Response status:', r.status, '| Content-Type:', r.headers.get('content-type'));
+      if(!(r.headers.get('content-type')||'').includes('json')){
+        return r.text().then(function(t){ console.error('[Auth.register] Got HTML instead of JSON. First 200 chars:', t.substring(0,200)); throw new Error('Server returned HTML - check server logs'); });
+      }
+      return r.json();
+    })
     .then(function(d){
+      console.log('[Auth.register] Response JSON:', JSON.stringify(d));
       setBtn('reg-btn',false,'CREATE ACCOUNT');
-      if(d.ok){ window.location.reload(); }
+      if(d.ok){ console.log('[Auth.register] SUCCESS - reloading'); window.location.reload(); }
       else { showFmAlert('reg-alert', d.msg||'Registration failed — username or email already taken'); }
-    }).catch(function(){ setBtn('reg-btn',false,'CREATE ACCOUNT'); showFmAlert('reg-alert','Server error — try again'); });
+    }).catch(function(err){ console.error('[Auth.register] CATCH ERROR:', err.message); setBtn('reg-btn',false,'CREATE ACCOUNT'); showFmAlert('reg-alert','Error: '+err.message); });
   },
   logout: function() {
     fetch('/api/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
@@ -453,7 +485,11 @@ var BetPanel = {
   set:   function(s,v){ var e=document.getElementById('bet-amt-'+s); if(e) e.value=v; },
   dbl:   function(s)  { var e=document.getElementById('bet-amt-'+s); if(e) e.value=(parseFloat(e.value)||1)*2; },
   togAc: function(s)  { var c=document.getElementById('ac-'+s),i=document.getElementById('ao-'+s); if(c&&i) i.disabled=!c.checked; },
-  act:   function(s)  { App.openModal('modal-login'); }
+  act: function(s) {
+    console.log('[BetPanel.act] Slot:', s, '| gameStatus:', typeof gameStatus !== 'undefined' ? gameStatus : 'NOT_LOADED');
+    App.openModal('modal-login');
+    console.log('[BetPanel.act] Note: full bet logic loads after app.js - reload if stuck');
+  }
 };
 var Wallet  = { showTab: function(t){
   var dep=document.getElementById('w-dep'),wit=document.getElementById('w-wit');
@@ -465,9 +501,18 @@ var Sidebar = { show: function(t,btn){
   if(btn) btn.classList.add('active');
 }};
 function gv(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
-function setBtn(id,dis,txt){ var b=document.getElementById(id); if(b){b.disabled=dis;b.textContent=txt;} }
-function showFmAlert(id,msg){ var e=document.getElementById(id); if(e){e.textContent=msg;e.className='form-alert error';e.style.display='block';} }
+function setBtn(id,dis,txt){ var b=document.getElementById(id); if(b){b.disabled=dis;b.textContent=txt;} else { console.warn('[setBtn] Button not found:', id); } }
+function showFmAlert(id,msg){ var e=document.getElementById(id); if(e){e.textContent=msg;e.className='form-alert error';e.style.display='block';} else { console.warn('[showFmAlert] Alert element not found:', id); } }
 function hideAlert(id){ var e=document.getElementById(id); if(e) e.style.display='none'; }
+// ── GLOBAL ERROR CATCHER ─────────────────────────────────────
+window.onerror = function(msg, src, line, col, err) {
+  console.error('[GLOBAL ERROR]', msg, '| File:', src, '| Line:', line, '| Col:', col);
+  return false;
+};
+window.onunhandledrejection = function(e) {
+  console.error('[UNHANDLED PROMISE]', e.reason);
+};
+console.log('[Crown Pesa] Head script loaded OK — App, Auth, BetPanel ready');
 function switchTab(btn,tab){
   document.querySelectorAll('.bet-tab').forEach(function(b){b.classList.remove('active');});
   btn.classList.add('active');
@@ -494,7 +539,7 @@ document.addEventListener('click',function(e){
       <span class="balance-chip"><span id="nav-sym">KSh</span> <span id="nav-bal">0.00</span></span>
       <button class="btn btn-green btn-sm" onclick="App.openModal('modal-wallet')">&#128179; Wallet</button>
       <button class="btn btn-outline btn-sm" id="btn-logout" onclick="Auth.logout()">Logout</button>
-      <button class="btn btn-admin btn-sm" id="btn-admin" style="display:none" onclick="App.openModal('modal-admin')">Admin</button>
+      <button class="btn btn-admin btn-sm" id="btn-admin" style="display:none" onclick="App.openModal('modal-admin');setTimeout(function(){if(window.loadAdminPanel)window.loadAdminPanel();},100)">Admin</button>
     </div>
   </div>
 </nav>
@@ -920,6 +965,7 @@ window.Canvas = (function() {
 
   function safeJson(r) {
     var ct = r.headers.get('content-type') || '';
+    console.log('[safeJson] status:', r.status, '| content-type:', ct, '| url:', r.url);
     if (!ct.includes('application/json')) {
       // Server returned HTML (error page) instead of JSON
       return r.text().then(function(t) {
@@ -1005,6 +1051,7 @@ window.Canvas = (function() {
 
   // ── SHOW/HIDE nav sections ───────────────────────────────────
   function onUserLogin() {
+    console.log('[onUserLogin] Called. User:', currentUser ? currentUser.username : 'null');
     var ng = g('nav-guest'), nu = g('nav-user');
     if (ng) ng.style.display = 'none';
     if (nu) nu.style.display = 'flex';
@@ -1084,22 +1131,31 @@ window.Canvas = (function() {
 
   // ── SOCKET ──────────────────────────────────────────────────
   function connectSocket() {
+    console.log('[connectSocket] Called. io available:', typeof io !== 'undefined');
     if (typeof io === 'undefined') {
-      console.log('socket.io not ready, retrying in 300ms...');
+      console.warn('[connectSocket] socket.io not loaded yet, retrying in 300ms...');
       setTimeout(connectSocket, 300);
       return;
     }
     if (socket) {
-      try { socket.removeAllListeners(); socket.disconnect(); } catch(e){}
+      console.log('[connectSocket] Disconnecting old socket');
+      try { socket.removeAllListeners(); socket.disconnect(); } catch(e){ console.warn('[connectSocket] Disconnect error:', e.message); }
       socket = null;
     }
 
     socket = io({ transports: ['websocket', 'polling'] });
 
-    socket.on('connect',    function() { console.log('✅ WS connected'); });
-    socket.on('disconnect', function() { console.warn('WS disconnected'); });
+    socket.on('connect', function() {
+      console.log('[Socket] ✅ Connected! ID:', socket.id);
+    });
+    socket.on('disconnect', function(reason) {
+      console.warn('[Socket] Disconnected. Reason:', reason);
+    });
+    socket.on('connect_error', function(err) {
+      console.error('[Socket] Connection error:', err.message);
+    });
 
-    socket.on('game:state', function(snap) {
+    socket.on('game:state', function(snap) { console.log('[Socket] game:state:', JSON.stringify(snap));
       currentRoundId = snap.roundId || null;
       var lbl = g('round-label');
       if (lbl) lbl.textContent = snap.roundId ? 'ROUND #' + snap.roundId : 'ROUND #—';
@@ -1180,9 +1236,26 @@ window.Canvas = (function() {
   // ── REAL IMPLEMENTATIONS — replace head stubs ────────────────
 
   window.App = {
-    openModal:  function(id){ var m=g(id); if(m) m.classList.add('open'); },
-    closeModal: function(id){ var m=g(id); if(m) m.classList.remove('open'); },
-    swapModal:  function(a,b){ window.App.closeModal(a); window.App.openModal(b); }
+    openModal: function(id) {
+      console.log('[App.openModal] id:', id);
+      var m = g(id);
+      if (!m) { console.error('[App.openModal] Element not found:', id); return; }
+      m.classList.add('open');
+      // Auto-trigger data load for admin panel
+      if (id === 'modal-admin') {
+        setTimeout(function() {
+          if (typeof window.loadAdminPanel === 'function') {
+            window.loadAdminPanel();
+          } else {
+            console.error('[App.openModal] loadAdminPanel not defined yet');
+          }
+        }, 80);
+      }
+    },
+    closeModal: function(id) {
+      var m = g(id); if (m) m.classList.remove('open');
+    },
+    swapModal: function(a, b) { window.App.closeModal(a); window.App.openModal(b); }
   };
 
   window.Auth = {
@@ -1352,31 +1425,86 @@ window.Canvas = (function() {
 
   // ── ADMIN ────────────────────────────────────────────────────
   window.loadAdminPanel = function() {
+    console.log('[Admin] Loading admin panel...');
+    var panel = g('admin-content');
+    if (!panel) { console.error('[Admin] admin-content element not found'); return; }
+    panel.innerHTML = '<p style="color:#888;padding:12px;text-align:center">Loading...</p>';
+
     httpGet('/api/admin/stats', function(d) {
-      var panel = g('admin-content'); if (!panel) return;
-      if (!d.ok) { panel.innerHTML='<p style="color:#f44;padding:12px">Not authorised</p>'; return; }
-      var pw = d.pendingWithdrawals||[];
-      panel.innerHTML =
-        '<div class="admin-stat-grid">'
-        +'<div class="admin-stat"><div class="val">'+(d.totalUsers||0)+'</div><div class="lbl">Users</div></div>'
-        +'<div class="admin-stat"><div class="val">'+parseFloat(d.totalDeposits||0).toFixed(0)+'</div><div class="lbl">Deposits</div></div>'
-        +'<div class="admin-stat"><div class="val">'+(d.totalRounds||0)+'</div><div class="lbl">Rounds</div></div>'
-        +'</div>'
-        +'<div class="admin-crash-ctrl">'
-        +'<div style="flex:1"><strong style="color:#f44">⚠ Force Next Crash Point</strong><br><small style="color:#888">Resets after one round</small></div>'
-        +'<input type="number" id="admin-cp" value="2.00" min="1.01" max="100" step="0.01" style="width:80px;background:#111;border:1px solid #444;color:#fff;padding:6px;border-radius:5px">'
-        +'<button class="btn btn-red" onclick="adminSetCrash()">Set</button>'
-        +'</div>'
-        +'<h3 style="color:var(--red);margin:16px 0 8px">Withdrawals ('+pw.length+')</h3>'
-        +(pw.length===0?'<p style="color:#555;font-size:13px">None pending.</p>'
-          :'<table class="admin-table"><thead><tr><th>User</th><th>Amount</th><th>Bank</th><th></th></tr></thead><tbody>'
-          +pw.map(function(t){
-            return '<tr><td>'+t.username+'</td><td>'+t.amount+' '+t.currency_code+'</td>'
-              +'<td>'+(t.bank_name||'-')+'</td><td>'
-              +'<button class="btn btn-green btn-sm" onclick="adminWithdrawal('+t.id+',\'approve\')">✓</button> '
-              +'<button class="btn btn-red btn-sm" onclick="adminWithdrawal('+t.id+',\'reject\')">✗</button>'
-              +'</td></tr>';
-          }).join('')+'</tbody></table>');
+      console.log('[Admin] Stats response:', JSON.stringify(d).substring(0,200));
+      if (!panel) return;
+
+      if (!d.ok) {
+        panel.innerHTML = '<p style="color:#f44;padding:12px">'+(d.msg||'Not authorised — make sure your account has is_admin=1 in the database')+'</p>';
+        return;
+      }
+
+      var pw = d.pendingWithdrawals || [];
+      var fa = d.fraudAlerts || [];
+      var snap = d.currentRound || {};
+
+      // ── Stats grid ────────────────────────────────────────
+      var html = '<div class="admin-stat-grid">'
+        + '<div class="admin-stat"><div class="val">'+(d.totalUsers||0)+'</div><div class="lbl">Users</div></div>'
+        + '<div class="admin-stat"><div class="val">'+parseFloat(d.totalDeposits||0).toLocaleString()+'</div><div class="lbl">Deposits</div></div>'
+        + '<div class="admin-stat"><div class="val">'+(d.totalRounds||0)+'</div><div class="lbl">Rounds</div></div>'
+        + '</div>';
+
+      // ── Current round status ──────────────────────────────
+      html += '<div style="background:#0a0a18;border:1px solid #252540;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:13px">'
+        + '<span style="color:#888">Current Round:</span> '
+        + '<strong style="color:#fff">#'+(snap.roundId||'—')+'</strong>'
+        + ' &nbsp;|&nbsp; Status: <span style="color:'+(snap.status==='in_progress'?'#00cc44':snap.status==='waiting'?'#ffaa00':'#ff4444')+'">'+(snap.status||'unknown')+'</span>'
+        + '</div>';
+
+      // ── Force crash control ───────────────────────────────
+      html += '<div class="admin-crash-ctrl">'
+        + '<div style="flex:1"><strong style="color:#f44">⚠ Force Next Crash</strong><br><small style="color:#888">One round only, then resets</small></div>'
+        + '<input type="number" id="admin-cp" value="2.00" min="1.01" max="100" step="0.01" style="width:80px;background:#111;border:1px solid #444;color:#fff;padding:6px;border-radius:5px">'
+        + '<button class="btn btn-red" onclick="adminSetCrash()">Set</button>'
+        + '</div>';
+
+      // ── Pending withdrawals ───────────────────────────────
+      html += '<h3 style="color:var(--red);margin:16px 0 8px;font-size:.88rem">Pending Withdrawals ('+pw.length+')</h3>';
+      if (pw.length === 0) {
+        html += '<p style="color:#555;font-size:13px;margin-bottom:14px">No pending withdrawals.</p>';
+      } else {
+        html += '<table class="admin-table" style="margin-bottom:14px"><thead><tr><th>User</th><th>Amount</th><th>Bank</th><th>Account</th><th>Actions</th></tr></thead><tbody>';
+        pw.forEach(function(t) {
+          html += '<tr>'
+            + '<td>'+t.username+'</td>'
+            + '<td>'+parseFloat(t.amount).toFixed(2)+' '+(t.currency_code||'')+'</td>'
+            + '<td>'+(t.bank_name||'—')+'</td>'
+            + '<td>'+(t.account_number||'—')+'</td>'
+            + '<td>'
+            + '<button class="btn btn-green btn-sm" onclick="adminWithdrawal('+t.id+','approve')">&#10003; Approve</button> '
+            + '<button class="btn btn-red btn-sm" onclick="adminWithdrawal('+t.id+','reject')">&#10007; Reject</button>'
+            + '</td></tr>';
+        });
+        html += '</tbody></table>';
+      }
+
+      // ── Fraud alerts ──────────────────────────────────────
+      html += '<h3 style="color:var(--red);margin:16px 0 8px;font-size:.88rem">Fraud Alerts ('+fa.length+')</h3>';
+      if (fa.length === 0) {
+        html += '<p style="color:#555;font-size:13px">No active fraud alerts.</p>';
+      } else {
+        html += '<table class="admin-table"><thead><tr><th>User</th><th>Type</th><th>Severity</th><th>Score</th><th>Action</th></tr></thead><tbody>';
+        fa.forEach(function(f) {
+          var sc = f.severity === 'critical' ? '#ff4444' : f.severity === 'high' ? '#ff8800' : '#ffcc00';
+          html += '<tr>'
+            + '<td>'+(f.username||f.user_id)+'</td>'
+            + '<td style="font-size:.75rem">'+f.event_type+'</td>'
+            + '<td><span style="color:'+sc+';font-weight:500">'+f.severity+'</span></td>'
+            + '<td>'+parseFloat(f.bot_score||0).toFixed(0)+'</td>'
+            + '<td><button class="btn btn-outline btn-sm" onclick="adminResolve('+f.id+')">Resolve</button></td>'
+            + '</tr>';
+        });
+        html += '</tbody></table>';
+      }
+
+      panel.innerHTML = html;
+      console.log('[Admin] Panel rendered successfully');
     });
   };
 
@@ -1384,6 +1512,13 @@ window.Canvas = (function() {
     var v = g('admin-cp') ? parseFloat(g('admin-cp').value) : 2;
     httpPost('/api/admin/set-crash',{point:v},function(r){
       toast(r.ok?'Next crash set to '+v+'x':(r.msg||'Error'), r.ok?'ok':'err');
+    });
+  };
+
+  window.adminResolve = function(id) {
+    httpPost('/api/admin/resolve-fraud/'+id, {}, function(r) {
+      toast(r.ok ? 'Alert resolved' : (r.msg||'Error'), r.ok ? 'ok' : 'err');
+      window.loadAdminPanel();
     });
   };
 
@@ -1395,20 +1530,29 @@ window.Canvas = (function() {
   };
 
   // ── BOOT ─────────────────────────────────────────────────────
-  // Get Paystack key
+  console.log('[Boot] app.js IIFE running...');
+  console.log('[Boot] window.App type:', typeof window.App);
+  console.log('[Boot] window.Auth type:', typeof window.Auth);
+  console.log('[Boot] typeof io:', typeof io);
+
   httpGet('/api/config', function(d) {
+    console.log('[Boot] /api/config:', JSON.stringify(d));
     if (d && d.paystackKey) PAYSTACK_KEY = d.paystackKey;
   });
 
-  // Check session
   httpGet('/api/me', function(d) {
+    console.log('[Boot] /api/me:', JSON.stringify(d));
     if (d.ok && d.user) {
+      console.log('[Boot] Logged in as:', d.user.username);
       currentUser = d.user;
-      onUserLogin(); // calls connectSocket()
+      onUserLogin();
     } else {
+      console.log('[Boot] No session. Connecting as guest...');
       connectSocket();
     }
   });
+
+  console.log('[Boot] IIFE setup complete');
 
 })(); // end IIFE
 

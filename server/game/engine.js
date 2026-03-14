@@ -452,13 +452,27 @@ function getStateSnapshot() {
 
 // ── START ENGINE ─────────────────────────────────────────────
 async function startEngine() {
+  // Retry DB queries up to 10 times with 2s delay
+  // Railway MySQL proxy needs a few seconds to warm up after schema install
+  async function withRetry(fn, label, retries = 10, delayMs = 2000) {
+    for (let i = 1; i <= retries; i++) {
+      try {
+        return await fn();
+      } catch (err) {
+        if (i === retries) throw err;
+        logger.warn(`${label} failed (attempt ${i}/${retries}), retrying in ${delayMs}ms... [${err.code || err.message}]`);
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+    }
+  }
+
   // Resume from DB if server restarted mid-round
-  const existing = await db.one(
-    "SELECT * FROM rounds WHERE status IN ('waiting','in_progress') ORDER BY id DESC LIMIT 1"
+  const existing = await withRetry(
+    () => db.one("SELECT * FROM rounds WHERE status IN ('waiting','in_progress') ORDER BY id DESC LIMIT 1"),
+    'DB query'
   );
 
   if (existing) {
-    // Crash any in-progress round from a previous server instance
     await db.query(
       "UPDATE rounds SET status='crashed', crashed_at=? WHERE id=?",
       [Date.now(), existing.id]

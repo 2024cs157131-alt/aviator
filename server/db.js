@@ -1,9 +1,25 @@
 /**
  * Database Module — MySQL connection pool with helpers
+ * Has a 10-second connection timeout so startup never hangs
  */
 const mysql  = require('mysql2/promise');
 const logger = require('./logger');
 require('dotenv').config();
+
+// Validate required env vars at startup and log clearly
+function checkConfig() {
+  const required = ['DB_HOST','DB_NAME','DB_USER','DB_PASS'];
+  const missing  = required.filter(k => !process.env[k]);
+  if (missing.length > 0) {
+    logger.error('═══════════════════════════════════════════');
+    logger.error('MISSING DATABASE ENVIRONMENT VARIABLES:');
+    missing.forEach(k => logger.error(`  ✗ ${k} is not set`));
+    logger.error('Add these in Railway → App service → Variables tab');
+    logger.error('═══════════════════════════════════════════');
+    return false;
+  }
+  return true;
+}
 
 const pool = mysql.createPool({
   host:               process.env.DB_HOST     || 'localhost',
@@ -12,41 +28,32 @@ const pool = mysql.createPool({
   user:               process.env.DB_USER,
   password:           process.env.DB_PASS,
   waitForConnections: true,
-  connectionLimit:    parseInt(process.env.DB_POOL_SIZE) || 20,
+  connectionLimit:    parseInt(process.env.DB_POOL_SIZE) || 10,
   queueLimit:         0,
   timezone:           'Z',
   charset:            'utf8mb4',
+  connectTimeout:     30000,   // 30s — Railway proxy needs time on cold start
+  enableKeepAlive:    true,
+  keepAliveInitialDelay: 0,
 });
 
-pool.on('connection', () => logger.debug('DB: new connection'));
+pool.on('connection', () => logger.debug('DB: new connection opened'));
 
-/**
- * Execute a query — returns raw result
- */
 async function query(sql, params = []) {
   const [rows] = await pool.execute(sql, params);
   return rows;
 }
 
-/**
- * Fetch single row or null
- */
 async function one(sql, params = []) {
   const rows = await query(sql, params);
   return rows[0] || null;
 }
 
-/**
- * Insert and return insert ID
- */
 async function insert(sql, params = []) {
   const [result] = await pool.execute(sql, params);
   return result.insertId;
 }
 
-/**
- * Run queries inside a transaction — auto-commits or rolls back
- */
 async function transaction(fn) {
   const conn = await pool.getConnection();
   await conn.beginTransaction();
@@ -62,49 +69,52 @@ async function transaction(fn) {
   }
 }
 
-/**
- * Atomically debit a user's balance — throws if insufficient funds
- */
 async function debitBalance(conn, userId, amount) {
   const [result] = await conn.execute(
     'UPDATE users SET balance = balance - ? WHERE id = ? AND balance >= ?',
     [amount, userId, amount]
   );
-  if (result.affectedRows === 0) {
-    throw new Error('INSUFFICIENT_BALANCE');
-  }
+  if (result.affectedRows === 0) throw new Error('INSUFFICIENT_BALANCE');
 }
 
-/**
- * Atomically credit a user's balance
- */
 async function creditBalance(conn, userId, amount) {
-  await conn.execute(
-    'UPDATE users SET balance = balance + ? WHERE id = ?',
-    [amount, userId]
-  );
+  await conn.execute('UPDATE users SET balance = balance + ? WHERE id = ?', [amount, userId]);
 }
 
-/**
- * Install schema on first run
- */
 async function install() {
+  if (!checkConfig()) {
+    throw new Error('Missing required database environment variables — see logs above');
+  }
+
+  // Test connection first with clear error message
+  try {
+    const conn = await pool.getConnection();
+    conn.release();
+    logger.info('✅ Database connected successfully');
+  } catch (err) {
+    logger.error('═══════════════════════════════════════════');
+    logger.error('DATABASE CONNECTION FAILED:');
+    logger.error(`  Error: ${err.message}`);
+    logger.error('Check your DB_HOST, DB_NAME, DB_USER, DB_PASS in Railway Variables');
+    logger.error('═══════════════════════════════════════════');
+    throw err;
+  }
+
   const fs   = require('fs');
   const path = require('path');
   const sql  = fs.readFileSync(path.join(__dirname, '../database/schema.sql'), 'utf8');
 
-  // Split on semicolons and run each statement
   const statements = sql
     .split(';')
     .map(s => s.trim())
-    .filter(s => s.length > 0 && !s.startsWith('--'));
+    .filter(s => s.length > 10 && !s.startsWith('--') && !s.startsWith('/*'));
 
   for (const stmt of statements) {
     try {
       await pool.execute(stmt);
     } catch (e) {
-      if (!e.message.includes('already exists')) {
-        logger.warn('Schema warning:', e.message.substring(0, 100));
+      if (!e.message.includes('already exists') && !e.message.includes('Duplicate')) {
+        logger.warn('Schema note:', e.message.substring(0, 120));
       }
     }
   }

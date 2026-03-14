@@ -45,14 +45,30 @@ io.use((socket, next) => sessionMiddleware(socket.request, socket.request.res ||
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc:  ["'self'", "'unsafe-inline'", 'https://js.paystack.co', 'https://fonts.googleapis.com'],
-      styleSrc:   ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://fonts.gstatic.com'],
-      fontSrc:    ["'self'", 'https://fonts.gstatic.com'],
-      connectSrc: ["'self'", 'wss:', 'ws:', 'https://api.paystack.co'],
-      imgSrc:     ["'self'", 'data:'],
+      defaultSrc:    ["'self'"],
+      // 'unsafe-hashes' needed for onclick="..." attributes in HTML
+      scriptSrc:     ["'self'", "'unsafe-inline'", "'unsafe-hashes'",
+                      'https://js.paystack.co', 'https://fonts.googleapis.com'],
+      // script-src-attr controls inline event handlers (onclick etc.)
+      scriptSrcAttr: ["'unsafe-inline'"],
+      // Paystack loads its own CSS from paystack.com
+      styleSrc:      ["'self'", "'unsafe-inline'",
+                      'https://fonts.googleapis.com', 'https://fonts.gstatic.com',
+                      'https://paystack.com', 'https://*.paystack.com'],
+      styleSrcElem:  ["'self'", "'unsafe-inline'",
+                      'https://fonts.googleapis.com', 'https://fonts.gstatic.com',
+                      'https://paystack.com', 'https://*.paystack.com'],
+      fontSrc:       ["'self'", 'https://fonts.gstatic.com', 'https://paystack.com'],
+      // Paystack checkout loads in an iframe from checkout.paystack.com
+      frameSrc:      ['https://checkout.paystack.com', 'https://*.paystack.com'],
+      connectSrc:    ["'self'", 'wss:', 'ws:',
+                      'https://api.paystack.co', 'https://*.paystack.com'],
+      imgSrc:        ["'self'", 'data:', 'https://*.paystack.com'],
     }
-  }
+  },
+  // Keep other helmet protections but don't let them interfere
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy:   false,
 }));
 app.use(cors({ origin: process.env.NODE_ENV === 'production' ? false : '*', credentials: true }));
 app.use(express.json({ limit: '1mb' }));

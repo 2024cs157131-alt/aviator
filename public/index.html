@@ -1477,8 +1477,8 @@ window.Canvas = (function() {
             + '<td>'+(t.bank_name||'—')+'</td>'
             + '<td>'+(t.account_number||'—')+'</td>'
             + '<td>'
-            + '<button class="btn btn-green btn-sm" onclick="adminWithdrawal('+t.id+','approve')">&#10003; Approve</button> '
-            + '<button class="btn btn-red btn-sm" onclick="adminWithdrawal('+t.id+','reject')">&#10007; Reject</button>'
+            + '<button class="btn btn-green btn-sm" onclick="adminWithdrawal(' + t.id + ',&quot;approve&quot;)">&#10003; Approve</button> '
+            + '<button class="btn btn-red btn-sm" onclick="adminWithdrawal(' + t.id + ',&quot;reject&quot;)">&#10007; Reject</button>'
             + '</td></tr>';
         });
         html += '</tbody></table>';

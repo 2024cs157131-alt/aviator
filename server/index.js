@@ -8,49 +8,33 @@ const cors       = require('cors');
 const rateLimit  = require('express-rate-limit');
 const path       = require('path');
 
-// ── REDIS SESSION IMPORTS ────────────────────────────────────
-const RedisStore = require('connect-redis').default;
-const { createClient } = require('redis');
-
-const db      = require('./db');
-const redis   = require('./redis'); // Your internal game redis logic
-const logger  = require('./logger');
-const engine  = require('./game/engine');
-const routes  = require('./auth/routes');
+const db     = require('./db');
+const redis  = require('./redis');
+const logger = require('./logger');
+const engine = require('./game/engine');
+const routes = require('./auth/routes');
 
 const app    = express();
-
-// Tell Express to trust the reverse proxy (Railway) so rate limiting works
-app.set('trust proxy', 1);
-
 const server = http.createServer(app);
 const io     = new Server(server, {
-  cors:        { origin: '*', methods: ['GET','POST'] },
-  transports:  ['websocket','polling'],
+  cors:          { origin: '*', methods: ['GET','POST'] },
+  transports:    ['websocket','polling'],
   pingTimeout:   60000,
   pingInterval:  25000,
 });
 
-// ── REDIS CLIENT FOR SESSIONS ────────────────────────────────
-const sessionRedisClient = createClient({
-  url: process.env.REDIS_URL || process.env.REDIS_PUBLIC_URL,
-  password: process.env.REDIS_PASSWORD || process.env.REDISPASSWORD
-});
+// Trust Railway reverse proxy
+app.set('trust proxy', 1);
 
-sessionRedisClient.connect().catch((err) => {
-  logger.error('Redis Session Client Connection Error:', err);
-});
-
-// ── SESSION ──────────────────────────────────────────────────
+// ── SESSION (memory store — no Redis dependency) ─────────────
 const sessionMiddleware = session({
-  store: new RedisStore({ client: sessionRedisClient }),
-  secret: process.env.SESSION_SECRET || 'dev_fallback_secret_change_in_prod',
-  resave: false,
+  secret:            process.env.SESSION_SECRET || 'crownpesa_dev_secret_change_me',
+  resave:            false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure:   process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge:   7 * 24 * 60 * 60 * 1000,
     sameSite: 'lax',
   },
 });
@@ -62,11 +46,11 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc:  ["'self'","'unsafe-inline'",'https://js.paystack.co','https://fonts.googleapis.com'],
-      styleSrc:   ["'self'","'unsafe-inline'",'https://fonts.googleapis.com','https://fonts.gstatic.com'],
-      fontSrc:    ["'self'",'https://fonts.gstatic.com'],
-      connectSrc: ["'self'",'wss:','ws:','https://api.paystack.co'],
-      imgSrc:     ["'self'",'data:'],
+      scriptSrc:  ["'self'", "'unsafe-inline'", 'https://js.paystack.co', 'https://fonts.googleapis.com'],
+      styleSrc:   ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://fonts.gstatic.com'],
+      fontSrc:    ["'self'", 'https://fonts.gstatic.com'],
+      connectSrc: ["'self'", 'wss:', 'ws:', 'https://api.paystack.co'],
+      imgSrc:     ["'self'", 'data:'],
     }
   }
 }));
@@ -76,11 +60,11 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use('/api', rateLimit({ windowMs: 60000, max: 200, message: { ok: false, msg: 'Too many requests' } }));
 app.use(express.static(path.join(__dirname, '../public')));
 
-// ── HEALTH CHECK — Railway pings this to know app is alive ──
+// ── HEALTH CHECK ─────────────────────────────────────────────
 let appStatus = 'starting';
 app.get('/health', (req, res) => res.json({ ok: true, status: appStatus }));
 
-// ── ROUTES ───────────────────────────────────────────────────
+// ── API ROUTES ───────────────────────────────────────────────
 app.use('/api', routes);
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 
@@ -92,73 +76,58 @@ io.on('connection', async (socket) => {
   const username = socket.request.session?.username;
   logger.debug(`[WS] connect: ${username || 'guest'} (${socket.id})`);
 
+  // Send current game state + history immediately
   socket.emit('game:state', engine.getStateSnapshot());
   try {
     const history = await engine.getHistory(20);
     socket.emit('game:history', history);
-  } catch(e) { /* db not ready yet */ }
+  } catch(e) {}
 
   socket.on('bet:place', async (data) => {
-    if (!userId) return socket.emit('error', { msg: 'Login required' });
-    const result = await engine.placeBet(userId, parseFloat(data.amount)||0, parseFloat(data.autoCashout)||0, socket.handshake.address, socket.id);
-    result.ok ? socket.emit('bet:confirm', { betId: result.betId, newBalance: result.newBalance })
-              : socket.emit('error', { msg: result.msg });
+    if (!userId) return socket.emit('error', { msg: 'Login required to bet' });
+    const result = await engine.placeBet(
+      userId,
+      parseFloat(data.amount) || 0,
+      parseFloat(data.autoCashout) || 0,
+      socket.handshake.address,
+      socket.id
+    );
+    if (result.ok) socket.emit('bet:confirm', { betId: result.betId, newBalance: result.newBalance });
+    else           socket.emit('error', { msg: result.msg });
   });
 
   socket.on('bet:cashout', async (data) => {
     if (!userId) return socket.emit('error', { msg: 'Login required' });
     const result = await engine.cashOut(userId, parseInt(data.roundId));
-    result.ok ? socket.emit('cashout:confirm', { cashout_at: result.cashout_at, win: result.win, newBalance: result.newBalance })
-              : socket.emit('error', { msg: result.msg });
-  });
-
-  socket.on('verify:round', async ({ roundId }) => {
-    const { verifyRound } = require('./game/provableFair');
-    const round = await db.one('SELECT * FROM rounds WHERE id=? AND status=?', [roundId, 'crashed']);
-    socket.emit('verify:result', round ? { ok: true, roundId, ...verifyRound(round) } : { ok: false, msg: 'Round not found' });
+    if (result.ok) socket.emit('cashout:confirm', { cashout_at: result.cashout_at, win: result.win, newBalance: result.newBalance });
+    else           socket.emit('error', { msg: result.msg });
   });
 
   socket.on('disconnect', () => logger.debug(`[WS] disconnect: ${username || 'guest'}`));
 });
 
-// ── STARTUP ──────────────────────────────────────────────────
-const PORT = parseInt(process.env.PORT) || 3000;
-
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM — shutting down');
-  server.close(() => process.exit(0));
-});
+// ── GRACEFUL SHUTDOWN ────────────────────────────────────────
+process.on('SIGTERM', () => { logger.info('SIGTERM'); server.close(() => process.exit(0)); });
 process.on('uncaughtException',  err => logger.error('Uncaught exception:', err));
 process.on('unhandledRejection', err => logger.error('Unhandled rejection:', err));
 
-// ── START HTTP SERVER FIRST so Railway health checks pass ──
-server.listen(PORT, '0.0.0.0', async () => {
-  logger.info(`\n🚀 Crown Pesa Aviator — HTTP server listening on port ${PORT}`);
-  logger.info(`   Connecting to database...\n`);
+// ── START — HTTP first, then DB ───────────────────────────────
+const PORT = parseInt(process.env.PORT) || 3000;
 
-  // Then connect to DB and start game — after HTTP is already up
-  // Small delay so Railway's network proxy is fully ready before DB queries
-  await new Promise(r => setTimeout(r, 1500));
+server.listen(PORT, '0.0.0.0', async () => {
+  logger.info(`\n🚀 Crown Pesa Aviator listening on port ${PORT}`);
+
+  await new Promise(r => setTimeout(r, 1500)); // Railway proxy warmup
 
   try {
     await redis.init();
-    logger.info('Redis init complete');
-
     await db.install();
-    logger.info('Database ready');
-
-    // engine.startEngine() has its own retry logic for DB warmup
     await engine.startEngine();
-    logger.info('Game engine started');
-
     appStatus = 'ready';
-    logger.info('\n✅ Crown Pesa Aviator is FULLY READY\n');
-
+    logger.info('✅ Crown Pesa Aviator FULLY READY\n');
   } catch (err) {
     appStatus = 'error';
-    logger.error('\n❌ STARTUP ERROR: ' + err.message);
-    logger.error('HTTP server stays alive — check variables and redeploy.\n');
-    // Keep server alive — do NOT call process.exit()
-    // Railway will show the error and let you fix it without a restart loop
+    logger.error('❌ STARTUP ERROR: ' + err.message);
+    // Keep alive so you can see the error — do NOT exit
   }
 });

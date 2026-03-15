@@ -120,15 +120,16 @@ io.on('connection', async (socket) => {
       parseFloat(data.amount) || 0,
       parseFloat(data.autoCashout) || 0,
       socket.handshake.address,
-      socket.id
+      socket.id,
+      data.slot || 1          // slot 1 or 2
     );
-    if (result.ok) socket.emit('bet:confirm', { betId: result.betId, newBalance: result.newBalance });
+    if (result.ok) socket.emit('bet:confirm', { betId: result.betId, newBalance: result.newBalance, slot: data.slot || 1 });
     else           socket.emit('error', { msg: result.msg });
   });
 
   socket.on('bet:cashout', async (data) => {
     if (!userId) return socket.emit('error', { msg: 'Login required' });
-    const result = await engine.cashOut(userId, parseInt(data.roundId));
+    const result = await engine.cashOut(userId, parseInt(data.roundId), data.slot || null);
     if (result.ok) socket.emit('cashout:confirm', {
       cashout_at: result.cashout_at,
       win:        result.win,

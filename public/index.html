@@ -88,9 +88,12 @@ body { font-family: var(--fn); background: var(--bg); color: var(--text);
 }
 .history-toggle:hover { color: #fff; }
 .history-expanded {
-  background: #070710; border-bottom: 1px solid var(--bdr);
-  padding: 8px 12px; max-height: 140px; overflow-y: auto;
+  background: #070710; border-bottom: 2px solid var(--bdr);
+  padding: 8px 12px; max-height: 220px; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: #333 transparent;
 }
+.history-expanded::-webkit-scrollbar { width: 4px; }
+.history-expanded::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
 .history-expanded-grid {
   display: flex; flex-wrap: wrap; gap: 4px;
 }
@@ -164,9 +167,9 @@ body { font-family: var(--fn); background: var(--bg); color: var(--text);
   75%{transform:translateX(6px)}
 }
 .plane {
-  position: absolute; width: 70px; height: auto; display: none;
-  pointer-events: none; transform-origin: 50% 50%;
-  filter: drop-shadow(0 0 8px rgba(255,60,0,.8));
+  position: absolute; display: none;
+  pointer-events: none;
+  filter: drop-shadow(0 0 6px rgba(255,80,0,.7));
 }
 .round-label {
   position: absolute; bottom: 6px; right: 10px;
@@ -542,6 +545,20 @@ window.onunhandledrejection = function(e) {
   console.error('[UNHANDLED PROMISE]', e.reason);
 };
 console.log('[Crown Pesa] Head script loaded OK — App, Auth, BetPanel ready');
+function toggleMute(){
+  if(window.Sound){
+    var m=window.Sound.toggleMute();
+    var btn=document.getElementById('mute-btn');
+    if(btn) btn.innerHTML = m ? '&#128263;' : '&#128266;';
+  }
+}
+function toggleSound() {
+  if (!window.Sound) return;
+  var muted = Sound.toggleMute();
+  var btn   = document.getElementById('mute-btn');
+  if (btn) btn.innerHTML = muted ? '&#128263;' : '&#128266;';
+  if (btn) btn.title = muted ? 'Unmute sounds' : 'Mute sounds';
+}
 function switchTab(btn,tab){
   document.querySelectorAll('.bet-tab').forEach(function(b){b.classList.remove('active');});
   btn.classList.add('active');
@@ -568,6 +585,7 @@ document.addEventListener('click',function(e){
       <button class="btn btn-outline" onclick="App.openModal('modal-login')">LOGIN</button>
       <button class="btn btn-red"     onclick="App.openModal('modal-register')">REGISTER</button>
     </div>
+    <button id="mute-btn" onclick="toggleMute()" title="Mute/unmute sounds" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:0 8px;flex-shrink:0">&#128266;</button>
     <div id="nav-user" class="nav-auth" style="display:none">
       <span class="balance-chip"><span id="nav-sym">KSh</span> <span id="nav-bal">0.00</span></span>
       <button class="btn btn-green btn-sm" onclick="App.openModal('modal-wallet')">&#128179; Wallet</button>
@@ -827,6 +845,8 @@ document.addEventListener('click',function(e){
  * canvas.js — Renderer only. No game logic. No network calls.
  * Exposed as window.Canvas so app.js can call it safely.
  */
+// ── SOUND ENGINE ────────────────────────────────────────────
+
 window.Canvas = (function() {
 
   var cv, ctx, wrap, plane, multEl, crashEl, crashV;
@@ -981,12 +1001,26 @@ window.Canvas = (function() {
     ctx.restore();
 
     if (plane) {
-      var tail=points[Math.max(0,points.length-6)];
-      var ang=Math.atan2(tail.y-tip.y,tip.x-tail.x);
-      plane.style.display='block';
-      plane.style.left=(tip.x-52)+'px';
-      plane.style.top=(tip.y-24)+'px';
-      plane.style.transform='rotate('+(-ang*180/Math.PI)+'deg)';
+      var lookback  = Math.max(0, points.length - 10);
+      var tail      = points[lookback];
+      var ang       = Math.atan2(tail.y - tip.y, tip.x - tail.x);
+      var deg       = -ang * 180 / Math.PI;
+      // Plane SVG: viewBox 0 0 140 60, nose at x≈138 y=30
+      // We want the nose to sit exactly on tip, plane body trailing BELOW-LEFT
+      // So position the SVG so that (138, 30) in SVG space maps to (tip.x, tip.y)
+      // Then rotate around that nose point
+      var scale    = 0.65;                    // scale plane down
+      var svgW     = 140 * scale;             // ≈91px
+      var svgH     = 60  * scale;             // ≈39px
+      var noseX    = 138 * scale;             // nose x in CSS px from left of SVG
+      var noseY    = 30  * scale;             // nose y in CSS px from top of SVG
+      plane.style.width           = svgW + 'px';
+      plane.style.height          = svgH + 'px';
+      plane.style.display         = 'block';
+      plane.style.left            = (tip.x - noseX) + 'px';
+      plane.style.top             = (tip.y - noseY + 8) + 'px'; // +8 shifts body below curve
+      plane.style.transformOrigin = noseX + 'px ' + noseY + 'px';
+      plane.style.transform       = 'rotate(' + deg + 'deg)';
     }
   }
 
@@ -1011,16 +1045,17 @@ window.Canvas = (function() {
     drawCurve();
 
     if (multEl) {
-      // Format: show decimals until 100x, then whole numbers
       var display = mult < 100 ? mult.toFixed(2) : Math.floor(mult).toLocaleString();
       multEl.textContent = display + 'x';
       multEl.className = 'mult-display' + (mult<2?'':mult<5?' green':mult<10?' gold':mult<100?' orange':' mega');
     }
+    if (window.Sound) window.Sound.updateEngine(mult);
     AF=requestAnimationFrame(flyLoop);
   }
 
   function showWaiting(wu) {
     stopAll(); state='waiting'; waitUntil=wu; points=[]; startedAt=null; currentMaxMult=1;
+    if (window.Sound) { window.Sound.stopEngine(); window.Sound.playWaiting(); }
     if (plane) plane.style.display='none';
     if (multEl) multEl.classList.add('hidden');
     if (crashEl) crashEl.classList.add('hidden');
@@ -1029,6 +1064,7 @@ window.Canvas = (function() {
 
   function showFlying(sa) {
     stopAll(); state='flying'; startedAt=sa; points=[];
+    if (window.Sound) window.Sound.startEngine();
     var elapsed=Date.now()-sa;
     for (var ms=0;ms<elapsed;ms+=80) {
       points.push({x:elToX(ms/1000),y:multToY(calcMult(ms))});
@@ -1040,6 +1076,7 @@ window.Canvas = (function() {
 
   function showCrash(cp) {
     stopAll(); state='crashed';
+    if (window.Sound) window.Sound.playCrash();
     if (plane) plane.style.display='none';
     if (multEl) multEl.classList.add('hidden');
     var cpNum = parseFloat(cp);
@@ -1073,6 +1110,144 @@ window.Canvas = (function() {
            showCrash: showCrash, showIdle: showIdle, getCurrentMult: getCurrentMult };
 
 }());
+
+// ── SOUND ENGINE (Web Audio API — no files needed) ───────────────────────
+window.Sound = (function() {
+  var ctx = null;
+  var engineNode = null;
+  var engineGain = null;
+  var muted = false;
+
+  function getCtx() {
+    if (!ctx) {
+      try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+    }
+    return ctx;
+  }
+
+  // Resume context on user gesture (required by browsers)
+  document.addEventListener('click', function() {
+    var c = getCtx();
+    if (c && c.state === 'suspended') c.resume();
+  }, { once: false });
+
+  function playTone(freq, type, duration, vol, fadeOut) {
+    var c = getCtx(); if (!c || muted) return;
+    var osc  = c.createOscillator();
+    var gain = c.createGain();
+    osc.connect(gain); gain.connect(c.destination);
+    osc.type      = type || 'sine';
+    osc.frequency.setValueAtTime(freq, c.currentTime);
+    gain.gain.setValueAtTime(vol || 0.3, c.currentTime);
+    if (fadeOut) gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration);
+    osc.start(c.currentTime);
+    osc.stop(c.currentTime + duration);
+  }
+
+  // ── ENGINE HUM — continuous while flying ─────────────────
+  var _engineRunning = false;
+  function startEngine() {
+    var c = getCtx(); if (!c || muted || _engineRunning) return;
+    _engineRunning = true;
+    engineGain = c.createGain();
+    engineGain.gain.setValueAtTime(0.06, c.currentTime);
+    engineGain.connect(c.destination);
+
+    // Low drone
+    var drone = c.createOscillator();
+    drone.type = 'sawtooth';
+    drone.frequency.setValueAtTime(55, c.currentTime);
+    drone.connect(engineGain);
+    drone.start();
+    engineNode = drone;
+
+    // High-frequency turbine whine
+    var whine = c.createOscillator();
+    whine.type = 'sine';
+    whine.frequency.setValueAtTime(1200, c.currentTime);
+    var whineGain = c.createGain();
+    whineGain.gain.setValueAtTime(0.02, c.currentTime);
+    whine.connect(whineGain); whineGain.connect(c.destination);
+    whine.start();
+    engineNode._whine = whine;
+    engineNode._whineGain = whineGain;
+  }
+
+  function updateEngineFreq(mult) {
+    // Engine pitch rises with multiplier
+    if (!engineNode || !engineGain || muted) return;
+    var freq = 55 + Math.log(mult) * 18;
+    var vol  = Math.min(0.12, 0.06 + Math.log(mult) * 0.008);
+    var c = getCtx();
+    engineNode.frequency.setTargetAtTime(freq, c.currentTime, 0.3);
+    engineGain.gain.setTargetAtTime(vol, c.currentTime, 0.3);
+    if (engineNode._whine) {
+      engineNode._whine.frequency.setTargetAtTime(1200 + Math.log(mult)*200, c.currentTime, 0.3);
+    }
+  }
+
+  function stopEngine() {
+    _engineRunning = false;
+    if (engineNode) {
+      try { engineNode.stop(); } catch(e){}
+      try { if(engineNode._whine) engineNode._whine.stop(); } catch(e){}
+      engineNode = null;
+    }
+    if (engineGain) { engineGain.disconnect(); engineGain = null; }
+  }
+
+  // ── CRASH SOUND ───────────────────────────────────────────
+  function playCrash() {
+    var c = getCtx(); if (!c || muted) return;
+    stopEngine();
+    // Explosion burst — noise via buffer
+    var bufSize = c.sampleRate * 0.6;
+    var buf = c.createBuffer(1, bufSize, c.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i=0; i<bufSize; i++) data[i] = (Math.random()*2-1) * Math.pow(1 - i/bufSize, 2);
+    var src  = c.createBufferSource();
+    var gain = c.createGain();
+    src.buffer = buf;
+    // Low-pass filter for boom sound
+    var filter = c.createBiquadFilter();
+    filter.type = 'lowpass'; filter.frequency.value = 400;
+    src.connect(filter); filter.connect(gain); gain.connect(c.destination);
+    gain.gain.setValueAtTime(0.8, c.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.6);
+    src.start();
+    // High pitched sting
+    playTone(220, 'sine', 0.4, 0.2, true);
+  }
+
+  // ── BET PLACED ────────────────────────────────────────────
+  function playBet() {
+    playTone(440, 'sine', 0.08, 0.15, true);
+    setTimeout(function(){ playTone(550, 'sine', 0.08, 0.1, true); }, 80);
+  }
+
+  // ── CASHOUT WIN ───────────────────────────────────────────
+  function playCashout() {
+    var freqs = [523, 659, 784, 1047]; // C5 E5 G5 C6
+    freqs.forEach(function(f, i) {
+      setTimeout(function(){ playTone(f, 'sine', 0.18, 0.18, true); }, i * 80);
+    });
+  }
+
+  // ── COUNTDOWN TICK ────────────────────────────────────────
+  function playTick() {
+    playTone(880, 'sine', 0.04, 0.05, true);
+  }
+
+  // ── MUTE TOGGLE ──────────────────────────────────────────
+  function toggleMute() {
+    muted = !muted;
+    if (muted) stopEngine();
+    return muted;
+  }
+
+  return { startEngine, stopEngine, updateEngineFreq, updateEngine: updateEngineFreq, playCrash, playBet, playCashout, playTick, toggleMute, isMuted: function(){ return muted; } };
+})();
+
 
 </script>
 
@@ -1258,22 +1433,33 @@ window.Canvas = (function() {
     var bar = g('history-bar'); if (!bar) return;
     var show = _allHistory.slice(0, 25);
     bar.innerHTML = show.map(function(r) {
-      return '<span class="' + chipClass(r.crash_point) + '">' + parseFloat(r.crash_point).toFixed(2) + 'x</span>';
+      var cp = parseFloat(r.crash_point);
+      var fmt = cp < 100 ? cp.toFixed(2) : Math.floor(cp).toLocaleString();
+      return '<span class="' + chipClass(cp) + '">' + fmt + 'x</span>';
     }).join('');
-    // Also update expanded view if open
+    // Always update expanded if visible (realtime)
     var exp = g('history-expanded');
     if (exp && exp.style.display !== 'none') renderExpanded();
   }
 
   function renderExpanded() {
     var exp = g('history-expanded'); if (!exp) return;
-    var html = '<div class="history-expanded-grid">';
+    if (!_allHistory.length) {
+      exp.innerHTML = '<p style="color:#444;font-size:.75rem;padding:6px">No history yet</p>';
+      return;
+    }
+    var html = '<div style="padding:2px 4px 6px;font-size:.6rem;color:#555">'
+      + _allHistory.length + ' rounds &nbsp;&#8226;&nbsp; newest first</div>'
+      + '<div class="history-expanded-grid">';
     _allHistory.forEach(function(r, i) {
-      html += '<span class="' + chipClass(r.crash_point) + '" style="font-size:.65rem">'
-        + (i+1) + '. ' + parseFloat(r.crash_point).toFixed(2) + 'x</span>';
+      var cp  = parseFloat(r.crash_point);
+      var fmt = cp < 100 ? cp.toFixed(2) : Math.floor(cp).toLocaleString();
+      var rid = r.id && r.id < 1e12 ? r.id : (i+1); // use real round ID if it's not a timestamp
+      html += '<span class="' + chipClass(cp) + '" style="font-size:.62rem;cursor:default"'
+        + ' title="Round #' + rid + '">#' + rid + ' ' + fmt + 'x</span>';
     });
     html += '</div>';
-    exp.innerHTML = html || '<p style="color:#444;font-size:.75rem">No history yet</p>';
+    exp.innerHTML = html;
   }
 
   window.toggleHistory = function() {
@@ -1285,6 +1471,7 @@ window.Canvas = (function() {
     if (btn) btn.innerHTML = visible ? '&#9660;' : '&#9650;';
     if (!visible) renderExpanded();
   };
+
 
   // Restore from localStorage immediately on load
   (function restoreHistory() {
@@ -1445,7 +1632,19 @@ window.Canvas = (function() {
     socket.on('bet:cashout', function(d) { updateLiveBetRow(d.username, d.cashout_at, false, d.win); });
 
     socket.on('bet:confirm', function(d) {
+      console.log('[bet:confirm] slot:', d.slot, 'newBalance:', d.newBalance);
       if (currentUser) { currentUser.balance = d.newBalance; updateBalanceUI(); }
+      // Server confirmed this slot is live — update the button display
+      if (d.slot) {
+        var s = parseInt(d.slot);
+        if (betState[s] === 'placed') {
+          // Show auto-cashout target if set
+          var acEl = g('ac-'+s), aoEl = g('ao-'+s);
+          var acLabel = (acEl && acEl.checked && aoEl)
+            ? ' @' + parseFloat(aoEl.value).toFixed(2) + 'x' : '';
+          setBetBtn(s, 'placed', '✓' + acLabel);
+        }
+      }
     });
 
     socket.on('cashout:confirm', function(d) {
@@ -1458,6 +1657,7 @@ window.Canvas = (function() {
         if (betState[s] === 'placed' || betState[s] === 'loading') {
           betState[s] = null; setBetBtn(s, 'idle', 'BET');
           toast(msg, 'win');
+          if (window.Sound) window.Sound.playCashout();
           if (currentUser) { currentUser.balance = d.newBalance; updateBalanceUI(); }
         }
       } else {
@@ -1474,8 +1674,19 @@ window.Canvas = (function() {
     });
 
     socket.on('error', function(d) {
-      toast(d.msg || 'Server error', 'err');
-      [1,2].forEach(function(s){ if (!betState[s]) setBetBtn(s, 'idle', 'BET'); });
+      console.error('[Socket error]', d.msg);
+      var msg = d.msg || 'Server error';
+      toast(msg, 'err');
+      // Only reset buttons that were in loading state (not placed/cashout)
+      [1,2].forEach(function(s){
+        if (betState[s] === 'loading') {
+          betState[s] = 'placed'; // revert to placed so cashout can retry
+          setBetBtn(s, gameStatus === 'flying' ? 'cashout' : 'placed',
+            gameStatus === 'flying' ? 'CASH OUT' : '✓ PLACED');
+        } else if (!betState[s]) {
+          setBetBtn(s, 'idle', 'BET');
+        }
+      });
     });
 
     socket.on('game:history', function(rounds) { renderHistoryBar(rounds); });
@@ -1589,7 +1800,8 @@ window.Canvas = (function() {
         var auto = (acEl && acEl.checked && aoEl) ? parseFloat(aoEl.value)||0 : 0;
         betState[s] = 'placed';
         setBetBtn(s, 'placed', '✓ PLACED');
-        if (socket) socket.emit('bet:place', { amount: amount, autoCashout: auto });
+        if (window.Sound) window.Sound.playBet();
+        if (socket) socket.emit('bet:place', { amount: amount, autoCashout: auto, slot: s });
       } else if (betState[s] === 'placed' && gameStatus === 'flying') {
         setBetBtn(s, 'loading', '...');
         if (socket) socket.emit('bet:cashout', { roundId: currentRoundId, slot: s });
@@ -1890,6 +2102,23 @@ window.Canvas = (function() {
       }
 
       // ── Fraud alerts ──────────────────────────────────────
+      // ── Real Users Table ─────────────────────────────────────
+      html += '<h3 style="color:var(--red);margin:16px 0 8px;font-size:.88rem">Real Users</h3>';
+      html += '<div style="overflow-x:auto"><table class="admin-table" style="margin-bottom:16px;min-width:600px">'
+        + '<thead><tr><th>#</th><th>Username</th><th>Balance</th><th>Bets</th><th>Won</th><th>Lost</th><th>Net P&L</th><th>Status</th><th></th></tr></thead><tbody>';
+      if (d.usersList && d.usersList.length) {
+        d.usersList.forEach(function(u) {
+          var status = u.is_suspended ? '<span style="color:#f66">Suspended</span>' : '<span style="color:#6c6">Active</span>';
+          var net = parseFloat(u.total_won||0) - parseFloat(u.total_lost||0);
+          var netColor = net >= 0 ? '#6c6' : '#f66';
+          html += '<tr>'
+          html += '<tr>'            + '<td style="color:#555;font-size:.7rem">' + u.id + '</td>'            + '<td><strong style="color:#fff">' + u.username + '</strong><br><span style="font-size:.62rem;color:#555">' + (u.email||'') + '</span></td>'            + '<td style="color:var(--gold);font-family:var(--fnum)">' + parseFloat(u.balance||0).toFixed(2) + '</td>'            + '<td>' + (u.total_bets||0) + '</td>'            + '<td style="color:#5c5">' + parseFloat(u.total_won||0).toFixed(0) + '</td>'            + '<td style="color:#f66">' + parseFloat(u.total_lost||0).toFixed(0) + '</td>'            + '<td style="color:' + (parseFloat(u.total_won||0)-parseFloat(u.total_lost||0)>=0?'#5c5':'#f66') + ';font-weight:500">' + (parseFloat(u.total_won||0)-parseFloat(u.total_lost||0)>=0?'+':'') + (parseFloat(u.total_won||0)-parseFloat(u.total_lost||0)).toFixed(0) + '</td>'            + '<td>' + (u.is_suspended ? '<span style="color:#f66">Suspended</span>' : '<span style="color:#6c6">Active</span>') + '</td>'            + '</tr>';
+        });
+      } else {
+        html += '<tr><td colspan="9" style="color:#555;text-align:center;padding:12px">No users yet</td></tr>';
+      }
+      html += '</tbody></table></div>';
+
       html += '<h3 style="color:var(--red);margin:16px 0 8px;font-size:.88rem">Fraud Alerts ('+fa.length+')</h3>';
       if (fa.length === 0) {
         html += '<p style="color:#555;font-size:13px">No active fraud alerts.</p>';

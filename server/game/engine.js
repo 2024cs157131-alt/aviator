@@ -166,6 +166,8 @@ async function crashRound() {
     // Record loss for responsible gaming tracking
     await riskMonitor.recordLoss(bet.user_id, parseFloat(bet.amount));
   }
+  // Clear all in-memory bets so next round starts fresh
+  if (currentRound) currentRound.bets = {};
 
   // Update round stats
   const stats = await db.one(
@@ -205,9 +207,11 @@ async function tick() {
   const multiplier = pf.multAtMs(elapsed);
 
   // Process auto-cashouts (server-authoritative)
-  for (const [userId, bet] of Object.entries(currentRound.bets)) {
+  // Keys are "userId_slot" format
+  for (const [betKey, bet] of Object.entries(currentRound.bets)) {
     if (bet.status === 'active' && bet.autoCashout && multiplier >= bet.autoCashout) {
-      await processCashout(parseInt(userId), currentRound.id, bet.autoCashout, bet.betId);
+      const uid = bet.userId || parseInt(betKey.split('_')[0]);
+      await processCashout(uid, currentRound.id, bet.autoCashout, bet.betId, betKey);
     }
   }
 
@@ -224,7 +228,7 @@ async function tick() {
 }
 
 // ── BET ─────────────────────────────────────────────────────
-async function placeBet(userId, amount, autoCashout, ipAddress, socketId) {
+async function placeBet(userId, amount, autoCashout, ipAddress, socketId, slot) {
   if (!currentRound || currentRound.status !== 'waiting') {
     return { ok: false, msg: 'Betting closed — wait for next round' };
   }
@@ -265,9 +269,19 @@ async function placeBet(userId, amount, autoCashout, ipAddress, socketId) {
   if (amount < minBet) return { ok: false, msg: `Minimum bet is ${minBet}` };
   if (amount > maxBet) return { ok: false, msg: `Maximum bet is ${maxBet}` };
 
-  // Check duplicate bet in this round
-  if (currentRound.bets[userId]) {
-    return { ok: false, msg: 'Already bet this round' };
+  // Support 2 bets per user using slot (1 or 2)
+  const betKey = slot ? `${userId}_${slot}` : `${userId}_1`;
+  const slotKey1 = `${userId}_1`;
+  const slotKey2 = `${userId}_2`;
+
+  // Block only if THIS SPECIFIC SLOT already has an active bet this round
+  const existingBet = currentRound.bets[betKey];
+  if (existingBet && existingBet.status === 'active') {
+    return { ok: false, msg: 'Slot ' + (slot || 1) + ' already has an active bet this round' };
+  }
+  // Clear any cashed-out entry for this slot so it can be reused next round
+  if (existingBet && existingBet.status !== 'active') {
+    delete currentRound.bets[betKey];
   }
 
   try {
@@ -308,9 +322,11 @@ async function placeBet(userId, amount, autoCashout, ipAddress, socketId) {
       return { betId: res.insertId, newBalance: balAfter, currency: user.currency_code };
     });
 
-    // Add to in-memory round bets
-    currentRound.bets[userId] = {
+    // Add to in-memory round bets using slot key
+    currentRound.bets[betKey] = {
       betId:      result.betId,
+      userId,
+      slot:       slot || 1,
       amount,
       autoCashout: autoCashout || null,
       status:     'active',
@@ -331,6 +347,7 @@ async function placeBet(userId, amount, autoCashout, ipAddress, socketId) {
       username:  user.username,
       amount,
       roundId:   currentRound.id,
+      slot:      slot || 1,
     });
 
     return { ok: true, betId: result.betId, newBalance: result.newBalance };
@@ -345,7 +362,7 @@ async function placeBet(userId, amount, autoCashout, ipAddress, socketId) {
 }
 
 // ── CASHOUT ─────────────────────────────────────────────────
-async function cashOut(userId, roundId) {
+async function cashOut(userId, roundId, slot) {
   if (!currentRound || currentRound.status !== 'in_progress') {
     return { ok: false, msg: 'No active round' };
   }
@@ -353,9 +370,29 @@ async function cashOut(userId, roundId) {
     return { ok: false, msg: 'Round mismatch' };
   }
 
-  const bet = currentRound.bets[userId];
-  if (!bet || bet.status !== 'active') {
-    return { ok: false, msg: 'No active bet found' };
+  let betKey = null;
+  let bet    = null;
+
+  if (slot) {
+    // Exact slot key — never fall back across slots
+    betKey = `${userId}_${slot}`;
+    bet    = currentRound.bets[betKey];
+    if (!bet || bet.status !== 'active') {
+      // Maybe the auto-cashout already handled this slot
+      if (bet && bet.status === 'cashed_out') {
+        return { ok: false, msg: 'Slot ' + slot + ' already cashed out' };
+      }
+      return { ok: false, msg: 'No active bet on slot ' + slot };
+    }
+  } else {
+    // No slot given — find first active bet for this user
+    for (const [key, b] of Object.entries(currentRound.bets)) {
+      if ((b.userId === userId || parseInt(key.split('_')[0]) === userId)
+          && b.status === 'active') {
+        betKey = key; bet = b; break;
+      }
+    }
+    if (!bet) return { ok: false, msg: 'No active bet found' };
   }
 
   // Server-authoritative multiplier
@@ -366,12 +403,18 @@ async function cashOut(userId, roundId) {
     return { ok: false, msg: 'Too late — already crashed!' };
   }
 
-  return processCashout(userId, roundId, multiplier, bet.betId);
+  return processCashout(userId, roundId, multiplier, bet.betId, betKey);
 }
 
-async function processCashout(userId, roundId, multiplier, betId) {
-  const bet = currentRound?.bets?.[userId];
-  if (!bet || bet.status !== 'active') return;
+async function processCashout(userId, roundId, multiplier, betId, betKey) {
+  // Find the correct bet object — betKey is "userId_slot" e.g. "42_1" or "42_2"
+  const key = betKey || `${userId}_1`;
+  const bet = currentRound?.bets?.[key];
+
+  if (!bet || bet.status !== 'active') {
+    logger.warn(`processCashout: bet not found or not active for key=${key} betId=${betId}`);
+    return;
+  }
 
   const win    = Math.round(bet.amount * multiplier * 100) / 100;
   const profit = Math.round((win - bet.amount) * 100) / 100;
@@ -395,9 +438,9 @@ async function processCashout(userId, roundId, multiplier, betId) {
       );
     });
 
-    // Mark as cashed out in memory
-    if (currentRound?.bets?.[userId]) {
-      currentRound.bets[userId].status = 'cashed_out';
+    // Mark as cashed out in memory — use the exact key we found above
+    if (currentRound?.bets?.[key]) {
+      currentRound.bets[key].status = 'cashed_out';
     }
 
     const user = await db.one('SELECT username, balance FROM users WHERE id=?', [userId]);

@@ -1132,11 +1132,14 @@ window.Canvas = (function() {
 
 // ── SOUND ENGINE (Web Audio API — no files needed) ───────────────────────
 window.Sound = (function() {
-  var ctx = null;
-  var engineNode = null;
-  var engineGain = null;
-  var muted = false;
+  var ctx            = null;
+  var muted          = false;
+  var _engineRunning = false;
 
+  // All active engine nodes stored here so stopEngine kills them cleanly
+  var _eng = {};
+
+  // ── CONTEXT ──────────────────────────────────────────────
   function getCtx() {
     if (!ctx) {
       try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
@@ -1144,143 +1147,316 @@ window.Sound = (function() {
     return ctx;
   }
 
-  // Resume context on user gesture (required by browsers)
+  // Resume on any user gesture — required by all modern browsers
   document.addEventListener('click', function() {
     var c = getCtx();
     if (c && c.state === 'suspended') c.resume();
-  }, { once: false });
+  });
 
-  function playTone(freq, type, duration, vol, fadeOut) {
-    var c = getCtx(); if (!c || muted) return;
+  // ── HELPERS ──────────────────────────────────────────────
+  function note(freq, type, startT, duration, vol, attack, decay) {
+    // Plays a single note with ADSR-style envelope
+    var c = getCtx(); if (!c) return null;
     var osc  = c.createOscillator();
     var gain = c.createGain();
     osc.connect(gain); gain.connect(c.destination);
-    osc.type      = type || 'sine';
-    osc.frequency.setValueAtTime(freq, c.currentTime);
-    gain.gain.setValueAtTime(vol || 0.3, c.currentTime);
-    if (fadeOut) gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration);
-    osc.start(c.currentTime);
-    osc.stop(c.currentTime + duration);
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, startT);
+    var a = attack  || 0.01;
+    var d = decay   || duration;
+    gain.gain.setValueAtTime(0.0001, startT);
+    gain.gain.linearRampToValueAtTime(vol || 0.2, startT + a);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startT + d);
+    osc.start(startT);
+    osc.stop(startT + d + 0.05);
+    return { osc: osc, gain: gain };
   }
 
-  // ── ENGINE HUM — continuous while flying ─────────────────
-  var _engineRunning = false;
+  function noise(startT, duration, vol, filterFreq) {
+    // White noise burst — used for engine rumble and explosion
+    var c = getCtx(); if (!c) return null;
+    var bufLen = Math.ceil(c.sampleRate * duration);
+    var buf    = c.createBuffer(1, bufLen, c.sampleRate);
+    var data   = buf.getChannelData(0);
+    for (var i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+    var src    = c.createBufferSource();
+    var gain   = c.createGain();
+    var filt   = c.createBiquadFilter();
+    src.buffer = buf;
+    filt.type  = 'bandpass';
+    filt.frequency.value = filterFreq || 200;
+    filt.Q.value = 0.5;
+    src.connect(filt); filt.connect(gain); gain.connect(c.destination);
+    gain.gain.setValueAtTime(vol || 0.2, startT);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startT + duration);
+    src.start(startT);
+    src.stop(startT + duration + 0.05);
+    return { src: src, gain: gain };
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ENGINE — Boeing 707 four-engine jet turbofan sound
+  // Four oscillator layers:
+  //  1. Sub-bass rumble  (very low sawtooth — airframe vibration)
+  //  2. Fan compressor   (mid sawtooth — JT3D turbofan characteristic)
+  //  3. Turbine whine    (high sine — jet turbine scream)
+  //  4. Noise layer      (looping bandpass noise — air rush)
+  // ══════════════════════════════════════════════════════════
   function startEngine() {
     var c = getCtx(); if (!c || muted || _engineRunning) return;
     _engineRunning = true;
-    engineGain = c.createGain();
-    engineGain.gain.setValueAtTime(0.06, c.currentTime);
-    engineGain.connect(c.destination);
+    c.resume();
 
-    // Low drone
-    var drone = c.createOscillator();
-    drone.type = 'sawtooth';
-    drone.frequency.setValueAtTime(55, c.currentTime);
-    drone.connect(engineGain);
-    drone.start();
-    engineNode = drone;
+    var t = c.currentTime;
 
-    // High-frequency turbine whine
-    var whine = c.createOscillator();
-    whine.type = 'sine';
-    whine.frequency.setValueAtTime(1200, c.currentTime);
-    var whineGain = c.createGain();
-    whineGain.gain.setValueAtTime(0.02, c.currentTime);
-    whine.connect(whineGain); whineGain.connect(c.destination);
-    whine.start();
-    engineNode._whine = whine;
-    engineNode._whineGain = whineGain;
+    // ── Master output chain ────────────────────────────────
+    var master = c.createGain();
+    master.gain.setValueAtTime(0.0001, t);
+    master.gain.linearRampToValueAtTime(0.7, t + 2.5);  // spool-up 2.5s
+    master.connect(c.destination);
+    _eng.master = master;
+
+    // ── Layer 1: Sub-bass airframe rumble ──────────────────
+    var sub = c.createOscillator();
+    sub.type = 'sawtooth';
+    sub.frequency.setValueAtTime(38, t);
+    var subGain = c.createGain();
+    subGain.gain.value = 0.28;
+    // Subtle LFO wobble for engine surge feel
+    var lfo = c.createOscillator();
+    lfo.frequency.setValueAtTime(4.5, t);
+    var lfoGain = c.createGain();
+    lfoGain.gain.value = 3;
+    lfo.connect(lfoGain); lfoGain.connect(sub.frequency);
+    lfo.start(t);
+    sub.connect(subGain); subGain.connect(master);
+    sub.start(t);
+    _eng.sub = sub; _eng.subGain = subGain; _eng.lfo = lfo;
+
+    // ── Layer 2: Fan / compressor mid roar ─────────────────
+    var fan = c.createOscillator();
+    fan.type = 'sawtooth';
+    fan.frequency.setValueAtTime(110, t);
+    var fanFilt = c.createBiquadFilter();
+    fanFilt.type = 'bandpass'; fanFilt.frequency.value = 320; fanFilt.Q.value = 0.8;
+    var fanGain = c.createGain();
+    fanGain.gain.value = 0.35;
+    fan.connect(fanFilt); fanFilt.connect(fanGain); fanGain.connect(master);
+    fan.start(t);
+    _eng.fan = fan; _eng.fanFilt = fanFilt; _eng.fanGain = fanGain;
+
+    // ── Layer 3: Turbine whine ─────────────────────────────
+    var turbine = c.createOscillator();
+    turbine.type = 'sine';
+    turbine.frequency.setValueAtTime(1450, t);
+    var turbGain = c.createGain();
+    turbGain.gain.value = 0.06;
+    turbine.connect(turbGain); turbGain.connect(master);
+    turbine.start(t);
+    _eng.turbine = turbine; _eng.turbGain = turbGain;
+
+    // ── Layer 4: Air rush noise ────────────────────────────
+    // Loop short noise buffer using scriptProcessor workaround:
+    // Actually just create a long 30s noise buffer
+    var rushLen = Math.min(c.sampleRate * 30, c.sampleRate * 30);
+    var rushBuf = c.createBuffer(1, rushLen, c.sampleRate);
+    var rushData = rushBuf.getChannelData(0);
+    for (var i = 0; i < rushLen; i++) rushData[i] = Math.random() * 2 - 1;
+    var rush = c.createBufferSource();
+    rush.buffer = rushBuf;
+    var rushFilt = c.createBiquadFilter();
+    rushFilt.type = 'bandpass'; rushFilt.frequency.value = 1800; rushFilt.Q.value = 0.3;
+    var rushGain = c.createGain();
+    rushGain.gain.value = 0.08;
+    rush.connect(rushFilt); rushFilt.connect(rushGain); rushGain.connect(master);
+    rush.start(t);
+    _eng.rush = rush; _eng.rushGain = rushGain;
+
+    _eng.c = c;
   }
 
   function updateEngineFreq(mult) {
-    // Engine pitch rises with multiplier
-    if (!engineNode || !engineGain || muted) return;
-    var freq = 55 + Math.log(mult) * 18;
-    var vol  = Math.min(0.12, 0.06 + Math.log(mult) * 0.008);
-    var c = getCtx();
-    engineNode.frequency.setTargetAtTime(freq, c.currentTime, 0.3);
-    engineGain.gain.setTargetAtTime(vol, c.currentTime, 0.3);
-    if (engineNode._whine) {
-      engineNode._whine.frequency.setTargetAtTime(1200 + Math.log(mult)*200, c.currentTime, 0.3);
-    }
+    if (!_engineRunning || !_eng.master || !_eng.sub || muted) return;
+    var c = _eng.c; if (!c) return;
+    var t = c.currentTime;
+    var smooth = 0.4;
+
+    // As multiplier climbs — engines spool UP (pitch and volume rise)
+    var spoolRatio = Math.min(3.5, 1 + Math.log(Math.max(1.01, mult)) * 0.38);
+
+    _eng.sub.frequency.setTargetAtTime(38  * spoolRatio, t, smooth);
+    _eng.fan.frequency.setTargetAtTime(110 * spoolRatio, t, smooth);
+    _eng.turbine.frequency.setTargetAtTime(1450 + Math.log(Math.max(1.01,mult)) * 320, t, smooth);
+
+    // Volume swells slightly as aircraft climbs
+    var vol = Math.min(0.9, 0.70 + Math.log(Math.max(1.01, mult)) * 0.04);
+    _eng.master.gain.setTargetAtTime(vol, t, smooth);
   }
 
   function stopEngine() {
     _engineRunning = false;
-    if (engineNode) {
-      try { engineNode.stop(); } catch(e){}
-      try { if(engineNode._whine) engineNode._whine.stop(); } catch(e){}
-      engineNode = null;
-    }
-    if (engineGain) { engineGain.disconnect(); engineGain = null; }
+    var keys = ['sub','fan','turbine','rush','lfo'];
+    keys.forEach(function(k) {
+      if (_eng[k]) { try { _eng[k].stop(); } catch(e) {} }
+    });
+    if (_eng.master) { try { _eng.master.disconnect(); } catch(e) {} }
+    _eng = {};
   }
 
-  // ── CRASH SOUND ───────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════
+  // CRASH — Hard catastrophic impact
+  // Three layers:
+  //  1. Low explosion BOOM (shaped noise, sub-bass)
+  //  2. Mid metal tear  (filtered noise sweep down)
+  //  3. High impact sting (descending tone — "plummeting" feel)
+  //  4. Rumble tail (fading low noise)
+  // ══════════════════════════════════════════════════════════
   function playCrash() {
     var c = getCtx(); if (!c || muted) return;
     stopEngine();
-    // Explosion burst — noise via buffer
-    var bufSize = c.sampleRate * 0.6;
-    var buf = c.createBuffer(1, bufSize, c.sampleRate);
-    var data = buf.getChannelData(0);
-    for (var i=0; i<bufSize; i++) data[i] = (Math.random()*2-1) * Math.pow(1 - i/bufSize, 2);
-    var src  = c.createBufferSource();
-    var gain = c.createGain();
-    src.buffer = buf;
-    // Low-pass filter for boom sound
-    var filter = c.createBiquadFilter();
-    filter.type = 'lowpass'; filter.frequency.value = 400;
-    src.connect(filter); filter.connect(gain); gain.connect(c.destination);
-    gain.gain.setValueAtTime(0.8, c.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.6);
-    src.start();
-    // High pitched sting
-    playTone(220, 'sine', 0.4, 0.2, true);
+    var t = c.currentTime;
+
+    // ── 1. BOOM — massive low-freq explosion ───────────────
+    var boomLen = Math.ceil(c.sampleRate * 2.2);
+    var boomBuf = c.createBuffer(1, boomLen, c.sampleRate);
+    var boomData = boomBuf.getChannelData(0);
+    for (var i = 0; i < boomLen; i++) {
+      // Shaped noise: sharp attack, exponential decay
+      var env = Math.pow(Math.max(0, 1 - i / boomLen), 0.7);
+      boomData[i] = (Math.random() * 2 - 1) * env;
+    }
+    var boom    = c.createBufferSource();
+    boom.buffer = boomBuf;
+    var boomFilt = c.createBiquadFilter();
+    boomFilt.type = 'lowpass'; boomFilt.frequency.value = 280;
+    var boomGain = c.createGain();
+    boomGain.gain.setValueAtTime(1.6, t);
+    boomGain.gain.exponentialRampToValueAtTime(0.001, t + 2.0);
+    boom.connect(boomFilt); boomFilt.connect(boomGain); boomGain.connect(c.destination);
+    boom.start(t);
+
+    // ── 2. Sub-bass impact punch ───────────────────────────
+    var punch = c.createOscillator();
+    punch.type = 'sine';
+    punch.frequency.setValueAtTime(65, t);
+    punch.frequency.exponentialRampToValueAtTime(20, t + 0.35);
+    var punchGain = c.createGain();
+    punchGain.gain.setValueAtTime(1.2, t);
+    punchGain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    punch.connect(punchGain); punchGain.connect(c.destination);
+    punch.start(t); punch.stop(t + 0.45);
+
+    // ── 3. Metal tear — filtered mid noise swept down ──────
+    var tearLen = Math.ceil(c.sampleRate * 1.4);
+    var tearBuf = c.createBuffer(1, tearLen, c.sampleRate);
+    var tearData = tearBuf.getChannelData(0);
+    for (var j = 0; j < tearLen; j++) tearData[j] = Math.random() * 2 - 1;
+    var tear     = c.createBufferSource();
+    tear.buffer  = tearBuf;
+    var tearFilt = c.createBiquadFilter();
+    tearFilt.type = 'bandpass'; tearFilt.frequency.value = 2800;
+    tearFilt.frequency.exponentialRampToValueAtTime(300, t + 1.2);
+    tearFilt.Q.value = 2.0;
+    var tearGain = c.createGain();
+    tearGain.gain.setValueAtTime(0.55, t + 0.05);
+    tearGain.gain.exponentialRampToValueAtTime(0.001, t + 1.3);
+    tear.connect(tearFilt); tearFilt.connect(tearGain); tearGain.connect(c.destination);
+    tear.start(t + 0.04);
+
+    // ── 4. Descending impact tone — "falling" sensation ────
+    var fall = c.createOscillator();
+    fall.type = 'sawtooth';
+    fall.frequency.setValueAtTime(380, t);
+    fall.frequency.exponentialRampToValueAtTime(28, t + 0.9);
+    var fallFilt = c.createBiquadFilter();
+    fallFilt.type = 'lowpass'; fallFilt.frequency.value = 600;
+    var fallGain = c.createGain();
+    fallGain.gain.setValueAtTime(0.5, t);
+    fallGain.gain.exponentialRampToValueAtTime(0.001, t + 0.95);
+    fall.connect(fallFilt); fallFilt.connect(fallGain); fallGain.connect(c.destination);
+    fall.start(t); fall.stop(t + 1.0);
+
+    // ── 5. Rumble tail ─────────────────────────────────────
+    var tailLen = Math.ceil(c.sampleRate * 1.8);
+    var tailBuf = c.createBuffer(1, tailLen, c.sampleRate);
+    var tailData = tailBuf.getChannelData(0);
+    for (var k = 0; k < tailLen; k++) tailData[k] = Math.random() * 2 - 1;
+    var tail     = c.createBufferSource();
+    tail.buffer  = tailBuf;
+    var tailFilt = c.createBiquadFilter();
+    tailFilt.type = 'lowpass'; tailFilt.frequency.value = 180;
+    var tailGain = c.createGain();
+    tailGain.gain.setValueAtTime(0.0001, t + 0.1);
+    tailGain.gain.linearRampToValueAtTime(0.35, t + 0.35);
+    tailGain.gain.exponentialRampToValueAtTime(0.001, t + 1.9);
+    tail.connect(tailFilt); tailFilt.connect(tailGain); tailGain.connect(c.destination);
+    tail.start(t + 0.1);
   }
 
-  // ── BET PLACED ────────────────────────────────────────────
-  function playBet() {
-    playTone(440, 'sine', 0.08, 0.15, true);
-    setTimeout(function(){ playTone(550, 'sine', 0.08, 0.1, true); }, 80);
-  }
-
-  // ── CASHOUT WIN ───────────────────────────────────────────
-  function playCashout() {
-    var freqs = [523, 659, 784, 1047]; // C5 E5 G5 C6
-    freqs.forEach(function(f, i) {
-      setTimeout(function(){ playTone(f, 'sine', 0.18, 0.18, true); }, i * 80);
+  // ══════════════════════════════════════════════════════════
+  // WAITING JINGLE — upbeat 4-note ascending motif
+  // Feels like "plane boarding / ready to fly" fanfare
+  // ══════════════════════════════════════════════════════════
+  function playWaiting() {
+    var c = getCtx(); if (!c || muted) return;
+    var t = c.currentTime;
+    // C4 - E4 - G4 - C5 (major arpeggio — bright, optimistic)
+    var melody = [262, 330, 392, 523];
+    melody.forEach(function(freq, i) {
+      note(freq, 'sine', t + i * 0.11, 0.22, 0.10, 0.01, 0.22);
     });
+    // Quiet harmony underneath
+    note(196, 'triangle', t, 0.48, 0.04, 0.02, 0.45);
   }
 
-  // ── COUNTDOWN TICK ────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════
+  // BET PLACED — satisfying double-click confirm
+  // ══════════════════════════════════════════════════════════
+  function playBet() {
+    var c = getCtx(); if (!c || muted) return;
+    var t = c.currentTime;
+    note(440, 'sine', t,        0.09, 0.13, 0.005, 0.09);
+    note(554, 'sine', t + 0.09, 0.09, 0.10, 0.005, 0.09);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // CASHOUT WIN — triumphant ascending fanfare
+  // ══════════════════════════════════════════════════════════
+  function playCashout() {
+    var c = getCtx(); if (!c || muted) return;
+    var t = c.currentTime;
+    // G4 B4 D5 G5 — G major arpeggio, bright and winning
+    var melody = [392, 494, 587, 784];
+    melody.forEach(function(freq, i) {
+      note(freq, 'sine', t + i * 0.09, 0.20, 0.18, 0.01, 0.20);
+    });
+    // Final held chord
+    note(784, 'triangle', t + 0.35, 0.30, 0.07, 0.02, 0.30);
+    note(523, 'triangle', t + 0.35, 0.30, 0.05, 0.02, 0.30);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // TICK — countdown second marker
+  // ══════════════════════════════════════════════════════════
   function playTick() {
-    playTone(880, 'sine', 0.04, 0.05, true);
+    var c = getCtx(); if (!c || muted) return;
+    note(1200, 'sine', c.currentTime, 0.05, 0.06, 0.003, 0.05);
   }
 
-  // ── MUTE TOGGLE ──────────────────────────────────────────
+  // ── MUTE ─────────────────────────────────────────────────
   function toggleMute() {
     muted = !muted;
     if (muted) stopEngine();
     return muted;
   }
 
-  function playWaiting() {
-    if (muted) return;
-    var c = getCtx(); if (!c) return;
-    var osc  = c.createOscillator();
-    var gain = c.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(520, c.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(640, c.currentTime + 0.15);
-    gain.gain.setValueAtTime(0.07, c.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.25);
-    osc.connect(gain); gain.connect(c.destination);
-    osc.start(); osc.stop(c.currentTime + 0.25);
-  }
-
-  return { startEngine, stopEngine, updateEngineFreq, updateEngine: updateEngineFreq,
-           playCrash, playBet, playCashout, playTick, playWaiting, toggleMute,
-           isMuted: function(){ return muted; } };
+  return {
+    startEngine,  stopEngine,
+    updateEngineFreq, updateEngine: updateEngineFreq,
+    playCrash,    playBet,  playCashout,
+    playTick,     playWaiting, toggleMute,
+    isMuted: function() { return muted; }
+  };
 })();
 
 

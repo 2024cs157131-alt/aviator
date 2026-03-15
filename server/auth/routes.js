@@ -97,7 +97,7 @@ router.post('/register', authLimiter, async (req, res) => {
 
     logger.info(`New user registered: ${username} (${country})`);
 
-    res.json({ ok: true, token, user: { id: userId, username, currency: cur, balance: 0, isAdmin: false } });
+    res.json({ ok: true, token, user: { id: userId, username, email, currency: cur, balance: 0, isAdmin: false } });
 
   } catch (e) {
     logger.error('Register error:', e);
@@ -124,11 +124,12 @@ router.post('/login', authLimiter, async (req, res) => {
     const cur   = getCur(user.country_code);
 
     res.json({ ok: true, token, user: {
-      id:       user.id,
-      username: user.username,
-      balance:  parseFloat(user.balance),
-      currency: cur,
-      isAdmin:  !!user.is_admin,
+      id:        user.id,
+      username:  user.username,
+      email:     user.email,
+      balance:   parseFloat(user.balance),
+      currency:  cur,
+      isAdmin:   !!user.is_admin,
       riskLevel: user.risk_level,
     }});
 
@@ -153,11 +154,12 @@ router.get('/me', apiLimiter, async (req, res) => {
     if (!user) return res.json({ ok: false });
     const cur = getCur(user.country_code);
     res.json({ ok: true, user: {
-      id:       user.id,
-      username: user.username,
-      balance:  parseFloat(user.balance),
-      currency: cur,
-      isAdmin:  !!user.is_admin,
+      id:        user.id,
+      username:  user.username,
+      email:     user.email,
+      balance:   parseFloat(user.balance),
+      currency:  cur,
+      isAdmin:   !!user.is_admin,
       riskLevel: user.risk_level,
       botScore:  parseFloat(user.bot_score),
     }});
@@ -194,7 +196,7 @@ router.post('/deposit/init', apiLimiter, async (req, res) => {
     );
 
     if (resp.data.status) {
-      res.json({ ok: true, url: resp.data.data.authorization_url, reference: ref });
+      res.json({ ok: true, url: resp.data.data.authorization_url, reference: ref, email: user.email });
     } else {
       res.json({ ok: false, msg: resp.data.message || 'Paystack error' });
     }
@@ -586,6 +588,37 @@ router.post('/admin/withdrawal/:action', requireAdmin, async (req, res) => {
   );
 
   res.json({ ok: true });
+});
+
+// ── SEED DEMO USERS (run once) ──────────────────────────────
+router.post('/admin/seed-demo', requireAdmin, async (req, res) => {
+  try {
+    const bcrypt = require('bcryptjs');
+    const { v4: uuidv4 } = require('uuid');
+    const demoUsers = [
+      {u:'MikeKiprotich',c:'KE'},{u:'AnnaWanjiru',c:'KE'},{u:'JamesOchieng',c:'KE'},
+      {u:'FatumaNjeri',c:'KE'},{u:'DavidMwangi',c:'KE'},{u:'GraceAkinyi',c:'KE'},
+      {u:'PeterKamau',c:'KE'},{u:'LucyMutua',c:'KE'},{u:'SamuelNgugi',c:'KE'},
+      {u:'RuthWanjiku',c:'KE'},{u:'EmekaNwosu',c:'NG'},{u:'AdaobiObi',c:'NG'},
+      {u:'KwameAsante',c:'GH'},{u:'AkosuaOwusu',c:'GH'},{u:'TheboMolefe',c:'ZA'},
+      {u:'NomvulaZulu',c:'ZA'},{u:'JohnMukasa',c:'UG'},{u:'FloraAuma',c:'UG'},
+      {u:'BarakaJuma',c:'TZ'},{u:'FatimaHassan',c:'TZ'}
+    ];
+    const CURRENCIES = {KE:'KES',NG:'NGN',GH:'GHS',ZA:'ZAR',UG:'UGX',TZ:'TZS'};
+    const hash = await bcrypt.hash('Demo@2024!', 10);
+    let created = 0;
+    for (const d of demoUsers) {
+      try {
+        const bal = Math.floor(Math.random()*5000)+500;
+        await db.insert(
+          'INSERT INTO users (uuid,username,email,password,country_code,currency_code,balance) VALUES (?,?,?,?,?,?,?)',
+          [uuidv4(), d.u, d.u.toLowerCase()+'@demo.crownpesa.com', hash, d.c, CURRENCIES[d.c]||'KES', bal]
+        );
+        created++;
+      } catch(e) { /* skip duplicates */ }
+    }
+    res.json({ ok: true, msg: `Created ${created} demo users` });
+  } catch(e) { res.json({ ok: false, msg: e.message }); }
 });
 
 router.get('/admin/fraud', requireAdmin, async (req, res) => {

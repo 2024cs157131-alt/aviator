@@ -72,13 +72,28 @@ body { font-family: var(--fn); background: var(--bg); color: var(--text);
 .btn-sm      { padding: 4px 9px; font-size: .75rem; }
 
 /* ── HISTORY BAR ─────────────────────────────────────────────── */
-.history-bar {
-  display: flex; gap: 5px; padding: 6px 12px;
+.history-wrap {
+  display: flex; align-items: center;
   background: #0a0a18; border-bottom: 1px solid var(--bdr);
+}
+.history-bar {
+  display: flex; gap: 5px; padding: 6px 8px; flex: 1;
   overflow-x: auto; white-space: nowrap; scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
 .history-bar::-webkit-scrollbar { display: none; }
+.history-toggle {
+  padding: 0 10px; background: none; border: none; border-left: 1px solid var(--bdr);
+  color: var(--muted); cursor: pointer; font-size: .7rem; height: 100%; flex-shrink: 0;
+}
+.history-toggle:hover { color: #fff; }
+.history-expanded {
+  background: #070710; border-bottom: 1px solid var(--bdr);
+  padding: 8px 12px; max-height: 140px; overflow-y: auto;
+}
+.history-expanded-grid {
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
 .h-chip {
   padding: 3px 9px; border-radius: 12px; flex-shrink: 0;
   font-family: var(--fnum); font-size: .7rem; font-weight: 700; cursor: default;
@@ -132,6 +147,8 @@ body { font-family: var(--fn); background: var(--bg); color: var(--text);
   0%,100%{text-shadow:0 0 30px rgba(255,255,255,.15)}
   50%{text-shadow:0 0 70px rgba(255,200,0,.5),0 0 120px rgba(255,100,0,.3)}
 }
+.mult-display.mega { color:#ff00ff; font-size: clamp(1.8rem,6vw,3.5rem); animation:megaPulse 0.6s ease-in-out infinite; }
+@keyframes megaPulse{0%,100%{text-shadow:0 0 30px #ff00ff80}50%{text-shadow:0 0 80px #ff00ff,0 0 160px #aa00ff80}}
 .crash-display { display:flex; flex-direction:column; align-items:center; gap:3px; animation:crashShake .4s ease; }
 .crash-emoji   { font-size: clamp(1.5rem,5vw,2.5rem); }
 .crash-value   {
@@ -354,8 +371,9 @@ body { font-family: var(--fn); background: var(--bg); color: var(--text);
    MOBILE RESPONSIVE — everything below 640px
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 860px) {
-  .main-layout { grid-template-columns: 1fr; }
-  .sidebar     { display: none; }
+  .main-layout { grid-template-columns: 1fr; display: flex; flex-direction: column; }
+  .sidebar     { display: flex; flex-direction: column; max-height: 260px; border-top: 2px solid var(--bdr); border-right: none; }
+  .sidebar-body { max-height: 200px; overflow-y: auto; }
   .game-col    { border-right: none; }
 }
 
@@ -548,7 +566,11 @@ document.addEventListener('click',function(e){
   </div>
 </nav>
 
-<div class="history-bar" id="history-bar"></div>
+<div class="history-wrap">
+  <div class="history-bar" id="history-bar"></div>
+  <button class="history-toggle" id="history-toggle" onclick="toggleHistory()" title="Expand round history">&#9660;</button>
+</div>
+<div class="history-expanded" id="history-expanded" style="display:none"></div>
 
 <div class="mode-bar fun" id="mode-bar">
   <span id="mode-dot" style="color:#ff8800">&#9679;</span>
@@ -767,8 +789,18 @@ window.Canvas = (function() {
   }
 
   function calcMult(ms) { return Math.max(1, Math.exp(0.00006 * ms)); }
-  function multToY(m)   { var H=cv.height; return Math.max(8, H*0.93-(Math.log(m)/Math.log(100))*H*0.87); }
-  function elToX(sec)   { return Math.min(10+(sec/60)*(cv.width-20), cv.width-10); }
+  function multToY(m) {
+    var H = cv.height;
+    // Dynamic log base: expands scale as multiplier grows so 10,000x still fits
+    // At 1x=bottom, uses natural log scaled to current max seen
+    var maxSeen = Math.max(10, currentMaxMult || 10);
+    var logBase = Math.max(Math.log(maxSeen) * 1.1, Math.log(10));
+    return Math.max(8, H * 0.93 - (Math.log(m) / logBase) * H * 0.87);
+  }
+  function elToX(sec) {
+    return Math.min(10 + (sec / 60) * (cv.width - 20), cv.width - 10);
+  }
+  var currentMaxMult = 1;
 
   function drawBG() {
     if (!ctx) return;
@@ -842,13 +874,46 @@ window.Canvas = (function() {
     for (var i=1;i<points.length;i++) ctx.lineTo(points[i].x,points[i].y);
     ctx.lineTo(tip.x,H); ctx.closePath(); ctx.fill();
 
+    // Draw multiplier labels on Y axis
+    if (currentMaxMult > 1.5) {
+      var milestones = [2,5,10,25,50,100,200,500,1000,5000,10000].filter(function(v){ return v <= currentMaxMult*1.2; });
+      ctx.save();
+      ctx.font = '10px Orbitron,monospace';
+      ctx.textAlign = 'left';
+      milestones.forEach(function(m) {
+        var yy = multToY(m);
+        if (yy > 15 && yy < cv.height-5) {
+          ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=0.5;
+          ctx.setLineDash([4,6]);
+          ctx.beginPath(); ctx.moveTo(32,yy); ctx.lineTo(cv.width,yy); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle='rgba(255,255,255,0.2)';
+          ctx.fillText(m>=1000?(m/1000).toFixed(0)+'k':m+'x', 4, yy+3);
+        }
+      });
+      ctx.restore();
+    }
+    // Smooth bezier curve using cardinal spline
     ctx.save();
-    ctx.shadowColor='#ff1100'; ctx.shadowBlur=18;
+    ctx.shadowColor='#ff1100'; ctx.shadowBlur=16;
     ctx.strokeStyle='#ff2222'; ctx.lineWidth=3.5;
     ctx.lineJoin='round'; ctx.lineCap='round';
     ctx.beginPath(); ctx.moveTo(points[0].x,points[0].y);
-    for (var j=1;j<points.length;j++) ctx.lineTo(points[j].x,points[j].y);
-    ctx.stroke(); ctx.restore();
+    // Cardinal spline for smooth curve
+    var tension = 0.4;
+    for (var j=1;j<points.length;j++) {
+      var p0 = points[Math.max(0,j-2)];
+      var p1 = points[j-1];
+      var p2 = points[j];
+      var p3 = points[Math.min(points.length-1,j+1)];
+      var cp1x = p1.x + (p2.x-p0.x)*tension/2;
+      var cp1y = p1.y + (p2.y-p0.y)*tension/2;
+      var cp2x = p2.x - (p3.x-p1.x)*tension/2;
+      var cp2y = p2.y - (p3.y-p1.y)*tension/2;
+      ctx.bezierCurveTo(cp1x,cp1y,cp2x,cp2y,p2.x,p2.y);
+    }
+    ctx.stroke();
+    ctx.restore();
 
     if (plane) {
       var tail=points[Math.max(0,points.length-6)];
@@ -875,19 +940,22 @@ window.Canvas = (function() {
     if (!startedAt) { AF=null; return; }
     var ms=Date.now()-startedAt;
     var mult=calcMult(ms);
+    if (mult > currentMaxMult) currentMaxMult = mult;
     points.push({x:elToX(ms/1000),y:multToY(mult)});
-    if (points.length>900) points.shift();
+    if (points.length>1200) points.shift();
     drawCurve();
 
     if (multEl) {
-      multEl.textContent=mult.toFixed(2)+'x';
-      multEl.className='mult-display'+(mult<2?'':mult<5?' green':mult<10?' gold':' orange');
+      // Format: show decimals until 100x, then whole numbers
+      var display = mult < 100 ? mult.toFixed(2) : Math.floor(mult).toLocaleString();
+      multEl.textContent = display + 'x';
+      multEl.className = 'mult-display' + (mult<2?'':mult<5?' green':mult<10?' gold':mult<100?' orange':' mega');
     }
     AF=requestAnimationFrame(flyLoop);
   }
 
   function showWaiting(wu) {
-    stopAll(); state='waiting'; waitUntil=wu; points=[]; startedAt=null;
+    stopAll(); state='waiting'; waitUntil=wu; points=[]; startedAt=null; currentMaxMult=1;
     if (plane) plane.style.display='none';
     if (multEl) multEl.classList.add('hidden');
     if (crashEl) crashEl.classList.add('hidden');
@@ -1097,39 +1165,71 @@ window.Canvas = (function() {
     return 'h-chip ' + (cp >= 10 ? 'h-moon' : cp >= 3 ? 'h-high' : cp >= 2 ? 'h-mid' : 'h-low');
   }
 
+  var _allHistory = []; // full history kept in memory
+
   function renderHistoryBar(rounds) {
-    var bar = g('history-bar'); if (!bar || !rounds) return;
-    // Save to sessionStorage so chips survive page interactions
-    try { sessionStorage.setItem('cp_history', JSON.stringify(rounds.slice(0,20))); } catch(e){}
-    bar.innerHTML = rounds.map(function(r) {
-      return '<span class="' + chipClass(r.crash_point) + '">' + parseFloat(r.crash_point).toFixed(2) + 'x</span>';
-    }).join('');
+    if (!rounds || !rounds.length) return;
+    // Merge with existing, deduplicate by id, keep newest first
+    var existing = _allHistory.map(function(r){ return r.id; });
+    rounds.forEach(function(r) {
+      if (!existing.includes(r.id)) _allHistory.unshift(r);
+    });
+    _allHistory.sort(function(a,b){ return b.id - a.id; });
+    // Persist to localStorage — survives refresh AND server restart
+    try { localStorage.setItem('cp_history_v2', JSON.stringify(_allHistory.slice(0,200))); } catch(e){}
+    drawHistoryBar();
   }
 
-  // Restore history chips immediately from sessionStorage (before WS connects)
+  function drawHistoryBar() {
+    var bar = g('history-bar'); if (!bar) return;
+    var show = _allHistory.slice(0, 25);
+    bar.innerHTML = show.map(function(r) {
+      return '<span class="' + chipClass(r.crash_point) + '">' + parseFloat(r.crash_point).toFixed(2) + 'x</span>';
+    }).join('');
+    // Also update expanded view if open
+    var exp = g('history-expanded');
+    if (exp && exp.style.display !== 'none') renderExpanded();
+  }
+
+  function renderExpanded() {
+    var exp = g('history-expanded'); if (!exp) return;
+    var html = '<div class="history-expanded-grid">';
+    _allHistory.forEach(function(r, i) {
+      html += '<span class="' + chipClass(r.crash_point) + '" style="font-size:.65rem">'
+        + (i+1) + '. ' + parseFloat(r.crash_point).toFixed(2) + 'x</span>';
+    });
+    html += '</div>';
+    exp.innerHTML = html || '<p style="color:#444;font-size:.75rem">No history yet</p>';
+  }
+
+  window.toggleHistory = function() {
+    var exp = g('history-expanded');
+    var btn = g('history-toggle');
+    if (!exp) return;
+    var visible = exp.style.display !== 'none';
+    exp.style.display = visible ? 'none' : 'block';
+    if (btn) btn.innerHTML = visible ? '&#9660;' : '&#9650;';
+    if (!visible) renderExpanded();
+  };
+
+  // Restore from localStorage immediately on load
   (function restoreHistory() {
     try {
-      var saved = sessionStorage.getItem('cp_history');
+      var saved = localStorage.getItem('cp_history_v2');
       if (saved) {
-        var rounds = JSON.parse(saved);
-        var bar = g('history-bar');
-        if (bar && rounds.length) {
-          bar.innerHTML = rounds.map(function(r) {
-            return '<span class="' + chipClass(r.crash_point) + '" style="animation:none">'
-              + parseFloat(r.crash_point).toFixed(2) + 'x</span>';
-          }).join('');
-        }
+        _allHistory = JSON.parse(saved);
+        drawHistoryBar();
+        console.log('[History] Restored', _allHistory.length, 'rounds from localStorage');
       }
-    } catch(e) {}
+    } catch(e) { _allHistory = []; }
   })();
 
-  function addHistoryChip(cp) {
-    var bar = g('history-bar'); if (!bar) return;
-    var s   = document.createElement('span');
-    s.className   = chipClass(cp);
-    s.textContent = parseFloat(cp).toFixed(2) + 'x';
-    bar.insertBefore(s, bar.firstChild);
-    while (bar.children.length > 20) bar.removeChild(bar.lastChild);
+  function addHistoryChip(cp, roundId) {
+    var entry = { crash_point: cp, id: roundId || Date.now() };
+    _allHistory.unshift(entry);
+    if (_allHistory.length > 200) _allHistory = _allHistory.slice(0, 200);
+    try { localStorage.setItem('cp_history_v2', JSON.stringify(_allHistory)); } catch(e){}
+    drawHistoryBar();
   }
 
   // ── LIVE BETS SIDEBAR ───────────────────────────────────────
@@ -1148,13 +1248,35 @@ window.Canvas = (function() {
     liveBets[username] = d;
   }
 
-  function updateLiveBetRow(username, cashoutAt, lost) {
+  function updateLiveBetRow(username, cashoutAt, lost, win) {
     var co = g('lbr-co-' + username); if (!co) return;
-    co.className   = lost ? 'lbr-lost' : 'lbr-co';
-    co.textContent = lost ? '💥 lost' : '✓ ' + parseFloat(cashoutAt).toFixed(2) + 'x';
+    co.className = lost ? 'lbr-lost' : 'lbr-co';
+    if (lost) {
+      co.textContent = '💥 lost';
+    } else {
+      var sym = currentUser && currentUser.currency ? currentUser.currency.sym : '';
+      co.innerHTML = '&#10003; ' + parseFloat(cashoutAt).toFixed(2) + 'x'
+        + (win ? ' <span style="color:var(--gold);font-size:.65rem">+' + sym + parseFloat(win).toFixed(2) + '</span>' : '');
+    }
   }
 
   // ── SOCKET ──────────────────────────────────────────────────
+  // Page Visibility API — keep socket alive when screen turns off/tab hidden
+  if (typeof document.hidden !== 'undefined') {
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) {
+        console.log('[Visibility] Tab visible again — checking socket...');
+        if (!socket || !socket.connected) {
+          console.log('[Visibility] Socket disconnected while hidden — reconnecting');
+          connectSocket();
+        } else {
+          // Re-request game state in case we missed events
+          socket.emit('request:state');
+        }
+      }
+    });
+  }
+
   function connectSocket() {
     console.log('[connectSocket] Called. io available:', typeof io !== 'undefined');
     if (typeof io === 'undefined') {
@@ -1233,21 +1355,35 @@ window.Canvas = (function() {
     });
 
     socket.on('bet:placed',  function(d) { addLiveBetRow(d.username, d.amount); });
-    socket.on('bet:cashout', function(d) { updateLiveBetRow(d.username, d.cashout_at, false); });
+    socket.on('bet:cashout', function(d) { updateLiveBetRow(d.username, d.cashout_at, false, d.win); });
 
     socket.on('bet:confirm', function(d) {
       if (currentUser) { currentUser.balance = d.newBalance; updateBalanceUI(); }
     });
 
     socket.on('cashout:confirm', function(d) {
-      [1,2].forEach(function(s) {
-        if (betState[s] === 'placed') {
+      // d.slot tells us which bet slot cashed out — only clear that one
+      var sym = currentUser && currentUser.currency ? currentUser.currency.sym : '';
+      var msg = '🎉 Cashed out ' + parseFloat(d.cashout_at).toFixed(2) + 'x — Won ' + sym + parseFloat(d.win).toFixed(2);
+      if (d.slot) {
+        // Single slot cashout
+        var s = parseInt(d.slot);
+        if (betState[s] === 'placed' || betState[s] === 'loading') {
           betState[s] = null; setBetBtn(s, 'idle', 'BET');
-          var sym = currentUser && currentUser.currency ? currentUser.currency.sym : '';
-          toast('🎉 Cashed out ' + parseFloat(d.cashout_at).toFixed(2) + 'x — Won ' + sym + parseFloat(d.win).toFixed(2), 'win');
+          toast(msg, 'win');
           if (currentUser) { currentUser.balance = d.newBalance; updateBalanceUI(); }
         }
-      });
+      } else {
+        // Legacy: clear first found placed slot
+        for (var s2 = 1; s2 <= 2; s2++) {
+          if (betState[s2] === 'placed' || betState[s2] === 'loading') {
+            betState[s2] = null; setBetBtn(s2, 'idle', 'BET');
+            toast(msg, 'win');
+            if (currentUser) { currentUser.balance = d.newBalance; updateBalanceUI(); }
+            break; // only clear ONE
+          }
+        }
+      }
     });
 
     socket.on('error', function(d) {
@@ -1369,7 +1505,7 @@ window.Canvas = (function() {
         if (socket) socket.emit('bet:place', { amount: amount, autoCashout: auto });
       } else if (betState[s] === 'placed' && gameStatus === 'flying') {
         setBetBtn(s, 'loading', '...');
-        if (socket) socket.emit('bet:cashout', { roundId: currentRoundId });
+        if (socket) socket.emit('bet:cashout', { roundId: currentRoundId, slot: s });
       }
     }
   };
@@ -1419,7 +1555,7 @@ window.Canvas = (function() {
           try {
             var handler = PaystackPop.setup({
               key:      PAYSTACK_KEY,
-              email:    currentUser.email,
+              email:    (currentUser && currentUser.email) ? currentUser.email : d.email || currentUser.email || '',
               amount:   Math.round(amt * 100),
               currency: (currentUser.currency && currentUser.currency.code) || 'KES',
               ref:      d.reference,
@@ -1605,6 +1741,10 @@ window.Canvas = (function() {
         + '<div style="flex:1"><strong style="color:#f44">⚠ Force Next Crash</strong><br><small style="color:#888">One round only, then resets</small></div>'
         + '<input type="number" id="admin-cp" value="2.00" min="1.01" max="100" step="0.01" style="width:80px;background:#111;border:1px solid #444;color:#fff;padding:6px;border-radius:5px">'
         + '<button class="btn btn-red" onclick="adminSetCrash()">Set</button>'
+        + '</div>'
+        + '<div style="background:#0a0a18;border:1px solid var(--bdr);border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:12px">'
+        + '<div style="flex:1;font-size:13px;color:#aaa">Seed 20 demo users for marketing (run once)</div>'
+        + '<button class="btn btn-outline btn-sm" onclick="adminSeedDemo()">Seed Demo Users</button>'
         + '</div>';
 
       // ── Pending withdrawals ───────────────────────────────
@@ -1655,6 +1795,13 @@ window.Canvas = (function() {
     var v = g('admin-cp') ? parseFloat(g('admin-cp').value) : 2;
     httpPost('/api/admin/set-crash',{point:v},function(r){
       toast(r.ok?'Next crash set to '+v+'x':(r.msg||'Error'), r.ok?'ok':'err');
+    });
+  };
+
+  window.adminSeedDemo = function() {
+    if (!confirm('Create 20 demo users? This should only be done once.')) return;
+    httpPost('/api/admin/seed-demo', {}, function(r) {
+      toast(r.ok ? r.msg : (r.msg||'Error'), r.ok ? 'ok' : 'err');
     });
   };
 

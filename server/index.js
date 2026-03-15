@@ -129,8 +129,22 @@ io.on('connection', async (socket) => {
   socket.on('bet:cashout', async (data) => {
     if (!userId) return socket.emit('error', { msg: 'Login required' });
     const result = await engine.cashOut(userId, parseInt(data.roundId));
-    if (result.ok) socket.emit('cashout:confirm', { cashout_at: result.cashout_at, win: result.win, newBalance: result.newBalance });
-    else           socket.emit('error', { msg: result.msg });
+    if (result.ok) socket.emit('cashout:confirm', {
+      cashout_at: result.cashout_at,
+      win:        result.win,
+      newBalance: result.newBalance,
+      slot:       data.slot || null,   // echo back which slot button was pressed
+    });
+    else socket.emit('error', { msg: result.msg });
+  });
+
+  // Client requests fresh state (e.g. after phone screen wakes up)
+  socket.on('request:state', async () => {
+    socket.emit('game:state', engine.getStateSnapshot());
+    try {
+      const history = await engine.getHistory(20);
+      socket.emit('game:history', history);
+    } catch(e) {}
   });
 
   socket.on('disconnect', () => logger.debug(`[WS] disconnect: ${username || 'guest'}`));

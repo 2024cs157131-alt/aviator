@@ -1245,7 +1245,23 @@ window.Sound = (function() {
     return muted;
   }
 
-  return { startEngine, stopEngine, updateEngineFreq, updateEngine: updateEngineFreq, playCrash, playBet, playCashout, playTick, toggleMute, isMuted: function(){ return muted; } };
+  function playWaiting() {
+    if (muted) return;
+    var c = getCtx(); if (!c) return;
+    var osc  = c.createOscillator();
+    var gain = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(520, c.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(640, c.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.07, c.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.25);
+    osc.connect(gain); gain.connect(c.destination);
+    osc.start(); osc.stop(c.currentTime + 0.25);
+  }
+
+  return { startEngine, stopEngine, updateEngineFreq, updateEngine: updateEngineFreq,
+           playCrash, playBet, playCashout, playTick, playWaiting, toggleMute,
+           isMuted: function(){ return muted; } };
 })();
 
 

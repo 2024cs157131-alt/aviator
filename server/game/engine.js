@@ -560,22 +560,23 @@ async function runDemoBots() {
         // Place bet directly in DB (bypass normal placeBet flow for speed)
         await db.query('UPDATE users SET balance = balance - ? WHERE id = ? AND balance >= ?',
           [amount, user.id, amount]);
-        const [res] = await db.query(
+        const betResult = await db.insert(
           'INSERT INTO bets (round_id, user_id, amount, currency_code, auto_cashout, bet_placed_ms, ip_address) VALUES (?,?,?,?,?,?,?)',
-          [roundId, user.id, amount, 'KES', null, delay, '127.0.0.1']
+          [roundId, user.id, amount, 'KES', null, Math.round(delay), '127.0.0.1']
         );
 
-        // Add to currentRound.bets so cashout works
+        // Add to currentRound.bets so auto-cashout works
         if (currentRound && currentRound.id === roundId) {
           const cashoutTarget = strategies[bot.strategy]();
           currentRound.bets[user.id] = {
-            betId: res.insertId || res[0]?.insertId,
+            betId: betResult,
             amount, autoCashout: cashoutTarget,
             status: 'active', currency: 'KES', isBot: true
           };
         }
 
         broadcast('bet:placed', { username: user.username, amount, roundId });
+        logger.debug(`[DemoBot] ${user.username} bet ${amount} → cashout @${currentRound?.bets?.[user.id]?.autoCashout?.toFixed(2)}x`);
       } catch(e) { /* silent — bot failures don't affect real players */ }
     }, delay);
   }

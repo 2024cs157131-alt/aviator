@@ -1307,19 +1307,26 @@ window.Canvas = (function() {
   }
 
   // ── LIVE BETS SIDEBAR ───────────────────────────────────────
+  var _activeSidebarTab = 'live';
+
   function addLiveBetRow(username, amount) {
-    var body = g('sidebar-body'); if (!body) return;
-    var emp  = body.querySelector('.empty-msg');
-    if (emp) body.innerHTML = '';
-    var sym = currentUser && currentUser.currency ? currentUser.currency.sym : '';
+    var sym = (currentUser && currentUser.currency) ? currentUser.currency.sym : 'KSh';
     var d   = document.createElement('div');
     d.className = 'live-bet-row';
     d.id        = 'lbr-' + username;
     d.innerHTML = '<div class="lbr-user">' + username + '</div>'
       + '<div><div class="lbr-amt">' + sym + parseFloat(amount).toFixed(2)
       + '</div><div class="lbr-co" id="lbr-co-' + username + '"></div></div>';
-    body.insertBefore(d, body.firstChild);
     liveBets[username] = d;
+
+    if (_activeSidebarTab === 'live') {
+      var body = g('sidebar-body'); if (!body) return;
+      var emp  = body.querySelector('.empty-msg');
+      if (emp) body.innerHTML = '';
+      var existing = g('lbr-' + username);
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+      body.insertBefore(d, body.firstChild);
+    }
   }
 
   function updateLiveBetRow(username, cashoutAt, lost, win) {
@@ -1406,6 +1413,8 @@ window.Canvas = (function() {
       var lbl = g('round-label');
       if (lbl) lbl.textContent = 'ROUND #' + d.roundId;
       [1,2].forEach(function(s){ if (betState[s] !== 'placed') betState[s] = null; });
+      liveBets = {};
+      if (_activeSidebarTab === 'live') { var lb = g('sidebar-body'); if(lb) lb.innerHTML = '<p class="empty-msg">Waiting for bets...</p>'; }
       if (window.Canvas) Canvas.showWaiting(d.waitUntil);
       updateBetButtons('waiting');
     });
@@ -1719,13 +1728,18 @@ window.Canvas = (function() {
     show: function(tab, btn) {
       document.querySelectorAll('.sidebar-tab').forEach(function(b){ b.classList.remove('active'); });
       if (btn) btn.classList.add('active');
+      _activeSidebarTab = tab;
       var body = g('sidebar-body'); if (!body) return;
 
       if (tab === 'live') {
         var keys = Object.keys(liveBets);
-        body.innerHTML = keys.length
-          ? keys.map(function(k){ return liveBets[k].outerHTML; }).join('')
-          : '<p class="empty-msg">Waiting for round...</p>';
+        if (keys.length) {
+          body.innerHTML = '';
+          // Append most recent bets first (keys may be unordered, sort by DOM order)
+          keys.forEach(function(k) { body.appendChild(liveBets[k].cloneNode(true)); });
+        } else {
+          body.innerHTML = '<p class="empty-msg">Waiting for bets...</p>';
+        }
 
       } else if (tab === 'my') {
         if (!currentUser) { body.innerHTML = '<p class="empty-msg">Login to see your bets.</p>'; return; }

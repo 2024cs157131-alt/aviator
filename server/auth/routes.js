@@ -189,20 +189,64 @@ router.post('/deposit/init', apiLimiter, async (req, res) => {
       [user.id, 'deposit', amount, balBefore, balBefore, cur.code, ref, 'pending', req.ip]
     );
 
+    // Validate Paystack key exists
+    const psKey = process.env.PAYSTACK_SECRET_KEY;
+    if (!psKey || psKey.length < 10) {
+      logger.error('Deposit init: PAYSTACK_SECRET_KEY not set or too short');
+      return res.json({ ok: false, msg: 'Payment not configured. Contact support.' });
+    }
+    if (!psKey.startsWith('sk_')) {
+      logger.error('Deposit init: PAYSTACK_SECRET_KEY does not start with sk_ — check Railway Variables');
+      return res.json({ ok: false, msg: 'Invalid payment key format. Contact support.' });
+    }
+
+    // Paystack requires amounts in kobo/pesewas (integer, multiply by 100)
+    const psAmount = Math.round(amount * 100);
+
+    logger.info(`Deposit init: user=${user.email} amount=${amount} currency=${cur.code} ref=${ref} psKey=${psKey.substring(0,12)}...`);
+
     const resp = await axios.post(
       'https://api.paystack.co/transaction/initialize',
-      { email: user.email, amount: Math.round(amount * 100), currency: cur.code, reference: ref },
-      { headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` } }
+      {
+        email:     user.email,
+        amount:    psAmount,
+        currency:  cur.code,
+        reference: ref,
+        callback_url: process.env.SITE_URL ? `${process.env.SITE_URL}/api/deposit/verify/${ref}` : undefined,
+        metadata: {
+          user_id:  user.id,
+          username: user.username,
+        }
+      },
+      { headers: { Authorization: `Bearer ${psKey}` } }
     );
+
+    logger.info(`Paystack response: status=${resp.data.status} msg=${resp.data.message}`);
 
     if (resp.data.status) {
       res.json({ ok: true, url: resp.data.data.authorization_url, reference: ref, email: user.email });
     } else {
-      res.json({ ok: false, msg: resp.data.message || 'Paystack error' });
+      logger.error('Paystack rejected:', resp.data.message);
+      res.json({ ok: false, msg: resp.data.message || 'Paystack declined the request' });
     }
   } catch (e) {
-    logger.error('Deposit init error:', e.message);
-    res.json({ ok: false, msg: 'Payment initialization failed' });
+    // Log the FULL error so we can diagnose
+    const errDetail = e.response ? JSON.stringify(e.response.data) : e.message;
+    logger.error('Deposit init error:', errDetail);
+
+    // Return specific error to client
+    let clientMsg = 'Payment initialization failed';
+    if (e.response) {
+      const status = e.response.status;
+      const data   = e.response.data;
+      if (status === 401) clientMsg = 'Invalid Paystack secret key — check PAYSTACK_SECRET_KEY in Railway Variables';
+      else if (status === 400) clientMsg = data.message || 'Invalid request to Paystack';
+      else if (status === 422) clientMsg = data.message || 'Paystack validation error: ' + JSON.stringify(data);
+      else clientMsg = `Paystack error ${status}: ${data.message || errDetail}`;
+    } else if (e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND') {
+      clientMsg = 'Cannot reach Paystack servers — check internet connectivity';
+    }
+    res.json({ ok: false, msg: clientMsg });
   }
 });
 

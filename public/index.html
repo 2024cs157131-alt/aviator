@@ -1622,12 +1622,14 @@ window.Canvas = (function() {
         if (btn) { btn.disabled = false; btn.textContent = 'PAY WITH PAYSTACK'; }
 
         if (!d.ok) {
-          showAlert('dep-alert', d.msg || 'Payment initialization failed');
+          var errMsg = d.msg || 'Payment initialization failed';
+          console.error('[Deposit] Server error:', errMsg);
+          showFmAlert('dep-alert', errMsg);
           return;
         }
 
         if (!d.url) {
-          showAlert('dep-alert', 'No payment URL returned — check Paystack keys in Railway Variables');
+          showFmAlert('dep-alert', 'No payment URL — check PAYSTACK_SECRET_KEY in Railway Variables tab');
           return;
         }
 

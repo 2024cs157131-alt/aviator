@@ -835,6 +835,25 @@ document.addEventListener('click',function(e){
   </div>
 </div>
 
+<!-- User Action Modal -->
+<div class="modal-backdrop" id="modal-user-action">
+  <div class="modal" style="max-width:420px">
+    <button class="modal-close" onclick="App.closeModal('modal-user-action')">&#10005;</button>
+    <h2 id="ua-title" style="font-size:1rem;margin-bottom:4px">Adjust Balance</h2>
+    <p id="ua-current-bal" style="font-size:.78rem;color:var(--muted);margin-bottom:14px"></p>
+    <div class="form-alert" id="ua-alert" style="display:none;margin-bottom:10px"></div>
+    <div class="form-group">
+      <label>Amount <small style="color:#888">(positive = add, negative = deduct)</small></label>
+      <input type="number" id="ua-amount" step="0.01" style="width:100%">
+    </div>
+    <div class="form-group">
+      <label>Reason <small style="color:#888">(required — saved to audit log)</small></label>
+      <input type="text" id="ua-reason" placeholder="e.g. Bonus reward, Chargeback, etc." style="width:100%">
+    </div>
+    <button class="form-submit" id="ua-submit-btn">Apply</button>
+  </div>
+</div>
+
 <!-- socket.io from server -->
 <script src="/socket.io/socket.io.js"></script>
 <script src="https://js.paystack.co/v1/inline.js"></script>
@@ -2120,15 +2139,40 @@ window.Sound = (function() {
       // ── Fraud alerts ──────────────────────────────────────
       // ── Real Users Table ─────────────────────────────────────
       html += '<h3 style="color:var(--red);margin:16px 0 8px;font-size:.88rem">Real Users</h3>';
-      html += '<div style="overflow-x:auto"><table class="admin-table" style="margin-bottom:16px;min-width:600px">'
-        + '<thead><tr><th>#</th><th>Username</th><th>Balance</th><th>Bets</th><th>Won</th><th>Lost</th><th>Net P&L</th><th>Status</th><th></th></tr></thead><tbody>';
+      html += '<div style="overflow-x:auto"><table class="admin-table" style="margin-bottom:16px;min-width:700px">'
+        + '<thead><tr><th>#</th><th>User</th><th>Balance</th><th>Bets</th><th>Won</th><th>Lost</th><th>Net P&L</th><th>Status</th><th style="text-align:center">Actions</th></tr></thead><tbody>';
       if (d.usersList && d.usersList.length) {
         d.usersList.forEach(function(u) {
           var status = u.is_suspended ? '<span style="color:#f66">Suspended</span>' : '<span style="color:#6c6">Active</span>';
           var net = parseFloat(u.total_won||0) - parseFloat(u.total_lost||0);
           var netColor = net >= 0 ? '#6c6' : '#f66';
+          var net = parseFloat(u.total_won||0) - parseFloat(u.total_lost||0);
+          var isSuspended = !!u.is_suspended;
+          var statusBadge = isSuspended
+            ? '<span style="color:#f66;font-size:.7rem;background:#2a0000;padding:1px 5px;border-radius:3px">BANNED</span>'
+            : '<span style="color:#5c5;font-size:.7rem;background:#002200;padding:1px 5px;border-radius:3px">Active</span>';
           html += '<tr>'
-          html += '<tr>'            + '<td style="color:#555;font-size:.7rem">' + u.id + '</td>'            + '<td><strong style="color:#fff">' + u.username + '</strong><br><span style="font-size:.62rem;color:#555">' + (u.email||'') + '</span></td>'            + '<td style="color:var(--gold);font-family:var(--fnum)">' + parseFloat(u.balance||0).toFixed(2) + '</td>'            + '<td>' + (u.total_bets||0) + '</td>'            + '<td style="color:#5c5">' + parseFloat(u.total_won||0).toFixed(0) + '</td>'            + '<td style="color:#f66">' + parseFloat(u.total_lost||0).toFixed(0) + '</td>'            + '<td style="color:' + (parseFloat(u.total_won||0)-parseFloat(u.total_lost||0)>=0?'#5c5':'#f66') + ';font-weight:500">' + (parseFloat(u.total_won||0)-parseFloat(u.total_lost||0)>=0?'+':'') + (parseFloat(u.total_won||0)-parseFloat(u.total_lost||0)).toFixed(0) + '</td>'            + '<td>' + (u.is_suspended ? '<span style="color:#f66">Suspended</span>' : '<span style="color:#6c6">Active</span>') + '</td>'            + '</tr>';
+            + '<td style="color:#555;font-size:.7rem">' + u.id + '</td>'
+            + '<td><strong style="color:#fff">' + u.username + '</strong>'
+            + '<div style="font-size:.62rem;color:#555">' + (u.email||'') + '</div></td>'
+            + '<td style="color:var(--gold);font-family:var(--fnum);font-weight:600">'
+            + parseFloat(u.balance||0).toFixed(2) + '</td>'
+            + '<td style="color:#aaa">' + (u.total_bets||0) + '</td>'
+            + '<td style="color:#5c5">+' + parseFloat(u.total_won||0).toFixed(0) + '</td>'
+            + '<td style="color:#f66">-' + parseFloat(u.total_lost||0).toFixed(0) + '</td>'
+            + '<td style="color:' + (net>=0?'#5c5':'#f66') + ';font-weight:600">'
+            + (net>=0?'+':'') + net.toFixed(0) + '</td>'
+            + '<td>' + statusBadge + '</td>'
+            + '<td style="white-space:nowrap;text-align:center">'
+            + '<button class="btn btn-outline btn-sm" style="font-size:.65rem;padding:2px 7px;margin:1px" '
+            + 'onclick="adminAdjustBalance(' + u.id + ',\'' + u.username + '\',' + parseFloat(u.balance||0).toFixed(2) + ')" title="Adjust balance">💰 Adjust</button>'
+            + '<button class="btn btn-red btn-sm" style="font-size:.65rem;padding:2px 7px;margin:1px" '
+            + 'onclick="adminForfeit(' + u.id + ',\'' + u.username + '\')" title="Forfeit balance">🗑 Forfeit</button>'
+            + '<button class="btn btn-sm" style="font-size:.65rem;padding:2px 7px;margin:1px;background:' + (isSuspended?'#002200':'#2a0000') + ';color:' + (isSuspended?'#5c5':'#f66') + ';border:1px solid ' + (isSuspended?'#004400':'#440000') + '" '
+            + 'onclick="adminBan(' + u.id + ',\'' + u.username + '\',' + (isSuspended?'false':'true') + ')" title="' + (isSuspended?'Unban user':'Ban user') + '">'
+            + (isSuspended ? '✓ Unban' : '⛔ Ban') + '</button>'
+            + '</td>'
+            + '</tr>';
         });
       } else {
         html += '<tr><td colspan="9" style="color:#555;text-align:center;padding:12px">No users yet</td></tr>';
@@ -2292,6 +2336,64 @@ window.Sound = (function() {
     httpPost('/api/admin/resolve-fraud/'+id, {}, function(r) {
       toast(r.ok ? 'Alert resolved' : (r.msg||'Error'), r.ok ? 'ok' : 'err');
       window.loadAdminPanel();
+    });
+  };
+
+  // ── User Management Actions ──────────────────────────────────
+
+  window.adminAdjustBalance = function(userId, username, currentBal) {
+    var modal = g('modal-user-action');
+    if (!modal) return;
+    g('ua-title').textContent    = 'Adjust Balance — ' + username;
+    g('ua-current-bal').textContent = 'Current: ' + parseFloat(currentBal).toFixed(2);
+    g('ua-amount').value  = '';
+    g('ua-reason').value  = '';
+    g('ua-amount').placeholder = 'e.g. 500 (add) or -500 (deduct)';
+    g('ua-submit-btn').onclick = function() {
+      var amt    = parseFloat(g('ua-amount').value);
+      var reason = g('ua-reason').value.trim();
+      if (isNaN(amt) || amt === 0) { g('ua-alert').textContent = 'Enter a non-zero amount'; g('ua-alert').style.display='block'; return; }
+      if (!reason) { g('ua-alert').textContent = 'Reason is required for the audit trail'; g('ua-alert').style.display='block'; return; }
+      g('ua-alert').style.display = 'none';
+      g('ua-submit-btn').disabled = true;
+      g('ua-submit-btn').textContent = 'Saving...';
+      httpPost('/api/admin/adjust-balance', { userId: userId, amount: amt, reason: reason }, function(r) {
+        g('ua-submit-btn').disabled = false;
+        g('ua-submit-btn').textContent = 'Apply';
+        if (r.ok) {
+          toast('✅ Balance adjusted. New balance: ' + parseFloat(r.newBalance).toFixed(2), 'ok');
+          modal.classList.remove('open');
+          window.loadAdminPanel();
+        } else {
+          g('ua-alert').textContent = r.msg || 'Failed';
+          g('ua-alert').style.display = 'block';
+        }
+      });
+    };
+    modal.classList.add('open');
+  };
+
+  window.adminForfeit = function(userId, username) {
+    var reason = prompt('Forfeit ALL balance for ' + username + '?\nEnter reason (required):');
+    if (!reason) return;
+    if (!confirm('CONFIRM: Remove all balance from ' + username + '? This cannot be undone.')) return;
+    httpPost('/api/admin/forfeit-balance', { userId: userId, reason: reason }, function(r) {
+      toast(r.ok ? r.msg : (r.msg||'Error'), r.ok ? 'ok' : 'err');
+      if (r.ok) window.loadAdminPanel();
+    });
+  };
+
+  window.adminBan = function(userId, username, ban) {
+    var action = ban ? 'BAN' : 'UNBAN';
+    var reason = prompt(action + ' ' + username + '?\nEnter reason (required):');
+    if (!reason) return;
+    httpPost('/api/admin/suspend', { userId: userId, suspend: ban, reason: reason }, function(r) {
+      if (r.ok) {
+        toast((ban ? '⛔ ' + username + ' banned' : '✅ ' + username + ' unbanned'), ban ? 'err' : 'ok');
+        window.loadAdminPanel();
+      } else {
+        toast(r.msg || 'Error', 'err');
+      }
     });
   };
 

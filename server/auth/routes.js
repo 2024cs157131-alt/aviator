@@ -511,6 +511,25 @@ router.get('/admin/stats', requireAdmin, async (req, res) => {
 
     const snap = engine.getStateSnapshot();
 
+    // Also fetch real users list for admin panel
+    const usersList = await db.query(
+      `SELECT
+         u.id, u.username, u.email, u.country_code, u.currency_code,
+         u.balance, u.is_admin, u.is_suspended, u.risk_level, u.bot_score,
+         u.created_at, u.last_login,
+         COUNT(DISTINCT b.id) AS total_bets,
+         COALESCE(SUM(CASE WHEN b.status='won'  THEN b.profit  ELSE 0 END),0) AS total_won,
+         COALESCE(SUM(CASE WHEN b.status='lost' THEN ABS(b.profit) ELSE 0 END),0) AS total_lost,
+         COALESCE(SUM(CASE WHEN tx.type='deposit' AND tx.status='completed' THEN tx.amount ELSE 0 END),0) AS total_deposits
+       FROM users u
+       LEFT JOIN bets b  ON b.user_id  = u.id
+       LEFT JOIN transactions tx ON tx.user_id = u.id
+       WHERE u.email NOT LIKE '%@demo.crownpesa.com'
+       GROUP BY u.id
+       ORDER BY u.created_at DESC
+       LIMIT 200`
+    );
+
     res.json({
       ok: true,
       totalUsers:    users.c,
@@ -520,6 +539,7 @@ router.get('/admin/stats', requireAdmin, async (req, res) => {
       currentRound:  snap,
       pendingWithdrawals: pending,
       fraudAlerts:   flagged,
+      usersList,
     });
   } catch (e) {
     logger.error('Admin stats error:', e);
@@ -536,11 +556,28 @@ router.get('/admin/rounds', requireAdmin, async (req, res) => {
 });
 
 router.get('/admin/users', requireAdmin, async (req, res) => {
-  const users = await db.query(
-    `SELECT id, username, email, country_code, balance, is_admin, is_suspended, risk_level, bot_score, created_at, last_login
-     FROM users ORDER BY id DESC LIMIT 100`
-  );
-  res.json({ ok: true, users });
+  try {
+    const users = await db.query(
+      `SELECT
+         u.id, u.username, u.email, u.country_code, u.currency_code,
+         u.balance, u.is_admin, u.is_suspended, u.risk_level, u.bot_score,
+         u.created_at, u.last_login,
+         COUNT(DISTINCT b.id)                                              AS total_bets,
+         COALESCE(SUM(CASE WHEN b.status='won'  THEN b.profit  ELSE 0 END),0) AS total_won,
+         COALESCE(SUM(CASE WHEN b.status='lost' THEN ABS(b.profit) ELSE 0 END),0) AS total_lost,
+         COALESCE(SUM(CASE WHEN t.type='deposit' AND t.status='completed' THEN t.amount ELSE 0 END),0) AS total_deposits
+       FROM users u
+       LEFT JOIN bets b ON b.user_id = u.id
+       LEFT JOIN transactions t ON t.user_id = u.id
+       WHERE u.email NOT LIKE '%@demo.crownpesa.com'
+       GROUP BY u.id
+       ORDER BY u.created_at DESC
+       LIMIT 200`
+    );
+    res.json({ ok: true, users });
+  } catch(e) {
+    res.json({ ok: false, msg: e.message });
+  }
 });
 
 router.get('/admin/user/:id', requireAdmin, async (req, res) => {
@@ -581,6 +618,31 @@ router.post('/admin/adjust-balance', requireAdmin, async (req, res) => {
      JSON.stringify({ balance: user.balance }), JSON.stringify({ balance: newBal, reason }), req.ip]
   );
   res.json({ ok: true, newBalance: newBal });
+});
+
+router.post('/admin/forfeit-balance', requireAdmin, async (req, res) => {
+  const { userId, reason } = req.body;
+  if (!reason) return res.json({ ok: false, msg: 'Reason required' });
+  try {
+    const user = await db.one('SELECT id, username, balance, currency_code FROM users WHERE id=?', [userId]);
+    if (!user) return res.json({ ok: false, msg: 'User not found' });
+    const oldBal = parseFloat(user.balance);
+    await db.query('UPDATE users SET balance=0 WHERE id=?', [userId]);
+    await db.query(
+      `INSERT INTO transactions (user_id,type,amount,balance_before,balance_after,currency_code,reference,status,admin_note)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [userId,'adjustment',-oldBal,oldBal,0,user.currency_code||'KES',genRef(),'completed','FORFEIT: '+reason]
+    );
+    await db.query(
+      'INSERT INTO audit_log (actor_id,target_user_id,action,old_value,new_value,ip_address) VALUES (?,?,?,?,?,?)',
+      [req.session.userId, userId, 'forfeit_balance',
+       JSON.stringify({ balance: oldBal }), JSON.stringify({ balance: 0, reason }), req.ip]
+    );
+    logger.warn(`[ADMIN] Balance forfeited for user ${user.username} (${userId}), was ${oldBal}. Reason: ${reason}`);
+    res.json({ ok: true, msg: `Balance forfeited. ${user.username} now has 0.` });
+  } catch(e) {
+    res.json({ ok: false, msg: e.message });
+  }
 });
 
 router.post('/admin/set-crash', requireAdmin, async (req, res) => {

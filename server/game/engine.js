@@ -104,6 +104,9 @@ async function startNewRound() {
 
   logger.info(`[Round ${roundId}] Created — crash at ${params.crash_point}x (hidden)`);
 
+  // Trigger demo bots after a short delay (non-blocking)
+  setTimeout(() => { try { runDemoBots(); } catch(e) {} }, 800);
+
   // Schedule start
   setTimeout(activateRound, Math.max(100, waitUntil - Date.now()));
 }
@@ -502,3 +505,82 @@ module.exports = {
   setIO, startEngine, placeBet, cashOut,
   getStateSnapshot, getHistory,
 };
+
+// ── DEMO BOT SIMULATION ──────────────────────────────────────
+// Simulates realistic player activity for marketing purposes
+// Bots place bets each round with varied amounts and cashout strategies
+
+const DEMO_BOTS = [
+  { name:'MikeKiprotich', minBet:50,  maxBet:500,  strategy:'early'  },
+  { name:'AnnaWanjiru',   minBet:20,  maxBet:200,  strategy:'mid'    },
+  { name:'JamesOchieng',  minBet:100, maxBet:1000, strategy:'risky'  },
+  { name:'FatumaNjeri',   minBet:30,  maxBet:300,  strategy:'early'  },
+  { name:'DavidMwangi',   minBet:50,  maxBet:400,  strategy:'mid'    },
+  { name:'GraceAkinyi',   minBet:20,  maxBet:150,  strategy:'safe'   },
+  { name:'EmekaNwosu',    minBet:200, maxBet:2000, strategy:'risky'  },
+  { name:'KwameAsante',   minBet:100, maxBet:800,  strategy:'mid'    },
+];
+
+const strategies = {
+  safe:  () => 1.2 + Math.random() * 0.6,   // 1.2–1.8x
+  early: () => 1.5 + Math.random() * 1.0,   // 1.5–2.5x
+  mid:   () => 2.0 + Math.random() * 3.0,   // 2.0–5.0x
+  risky: () => 3.0 + Math.random() * 7.0,   // 3.0–10.0x
+};
+
+let botsActive = false;
+
+async function runDemoBots() {
+  if (botsActive || !currentRound || currentRound.status !== 'waiting') return;
+  botsActive = true;
+
+  // Only run if demo users exist in DB
+  let botUsers;
+  try {
+    botUsers = await db.query(
+      "SELECT id, username, balance FROM users WHERE email LIKE '%@demo.crownpesa.com' AND balance > 10 LIMIT 8"
+    );
+  } catch(e) { botsActive = false; return; }
+
+  if (!botUsers.length) { botsActive = false; return; }
+
+  const roundId = currentRound.id;
+
+  // Stagger bot bets randomly during the waiting phase
+  for (const user of botUsers) {
+    const delay = 500 + Math.random() * 5000; // 0.5–5.5s after round opens
+    setTimeout(async () => {
+      try {
+        if (!currentRound || currentRound.id !== roundId || currentRound.status !== 'waiting') return;
+
+        const bot = DEMO_BOTS.find(b => b.name === user.username) || DEMO_BOTS[0];
+        const amount = Math.floor(bot.minBet + Math.random() * (bot.maxBet - bot.minBet));
+        if (parseFloat(user.balance) < amount) return;
+
+        // Place bet directly in DB (bypass normal placeBet flow for speed)
+        await db.query('UPDATE users SET balance = balance - ? WHERE id = ? AND balance >= ?',
+          [amount, user.id, amount]);
+        const [res] = await db.query(
+          'INSERT INTO bets (round_id, user_id, amount, currency_code, auto_cashout, bet_placed_ms, ip_address) VALUES (?,?,?,?,?,?,?)',
+          [roundId, user.id, amount, 'KES', null, delay, '127.0.0.1']
+        );
+
+        // Add to currentRound.bets so cashout works
+        if (currentRound && currentRound.id === roundId) {
+          const cashoutTarget = strategies[bot.strategy]();
+          currentRound.bets[user.id] = {
+            betId: res.insertId || res[0]?.insertId,
+            amount, autoCashout: cashoutTarget,
+            status: 'active', currency: 'KES', isBot: true
+          };
+        }
+
+        broadcast('bet:placed', { username: user.username, amount, roundId });
+      } catch(e) { /* silent — bot failures don't affect real players */ }
+    }, delay);
+  }
+
+  botsActive = false;
+}
+
+module.exports.runDemoBots = runDemoBots;

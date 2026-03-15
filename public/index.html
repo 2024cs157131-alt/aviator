@@ -121,7 +121,9 @@ body { font-family: var(--fn); background: var(--bg); color: var(--text);
   border-bottom: 1px solid var(--bdr);
 }
 .mode-bar.live { background: #001800; color: var(--green); }
+.mode-bar.live #mode-dot { animation: dotPulse 1.5s ease-in-out infinite; }
 .mode-bar.fun  { background: #1a0a00; color: #ff8800; }
+@keyframes dotPulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
 /* ── CANVAS ──────────────────────────────────────────────────── */
 .canvas-wrap {
@@ -267,9 +269,10 @@ body { font-family: var(--fn); background: var(--bg); color: var(--text);
 .sidebar { background: var(--bg2); display: flex; flex-direction: column; }
 .sidebar-tabs { display: flex; border-bottom: 1px solid var(--bdr); }
 .sidebar-tab {
-  flex: 1; padding: 10px 4px; text-align: center; cursor: pointer;
-  font-size: .74rem; font-weight: 700; color: var(--muted);
+  flex: 1; padding: 8px 2px; text-align: center; cursor: pointer;
+  font-size: .68rem; font-weight: 700; color: var(--muted);
   border: none; background: transparent; border-bottom: 3px solid transparent;
+  white-space: nowrap;
 }
 .sidebar-tab.active { color: #fff; border-bottom-color: var(--red); }
 .sidebar-body { flex: 1; overflow-y: auto; padding: 8px; }
@@ -384,6 +387,10 @@ body { font-family: var(--fn); background: var(--bg); color: var(--text);
   .btn { padding: 5px 10px; font-size: .78rem; }
   .btn-sm { padding: 4px 8px; font-size: .72rem; }
   .balance-chip { padding: 3px 8px; font-size: .7rem; }
+  /* Sidebar visible on mobile with horizontal scrollable tabs */
+  .sidebar-tabs { overflow-x: auto; scrollbar-width: none; }
+  .sidebar-tabs::-webkit-scrollbar { display: none; }
+  .sidebar-tab { min-width: 60px; font-size: .65rem; }
 
   /* Canvas shorter on mobile */
   .canvas-wrap { min-height: 240px; }
@@ -467,7 +474,7 @@ var Auth = {
     .then(function(d){
       console.log('[Auth.login] Response JSON:', JSON.stringify(d));
       setBtn('li-btn',false,'LOGIN');
-      if(d.ok){ console.log('[Auth.login] SUCCESS - reloading'); window.location.reload(); }
+      if(d.ok){ console.log('[Auth.login] SUCCESS'); try{localStorage.setItem('cp_pending_email',d.user&&d.user.email?d.user.email:'');}catch(ex){} window.location.reload(); }
       else { showFmAlert('login-alert', d.msg||'Login failed'); }
     }).catch(function(err){ console.error('[Auth.login] CATCH ERROR:', err.message); setBtn('li-btn',false,'LOGIN'); showFmAlert('login-alert','Server error: '+err.message); });
   },
@@ -493,7 +500,7 @@ var Auth = {
     .then(function(d){
       console.log('[Auth.register] Response JSON:', JSON.stringify(d));
       setBtn('reg-btn',false,'CREATE ACCOUNT');
-      if(d.ok){ console.log('[Auth.register] SUCCESS - reloading'); window.location.reload(); }
+      if(d.ok){ console.log('[Auth.register] SUCCESS'); try{localStorage.setItem('cp_pending_email',d.user&&d.user.email?d.user.email:'');}catch(ex){} window.location.reload(); }
       else { showFmAlert('reg-alert', d.msg||'Registration failed — username or email already taken'); }
     }).catch(function(err){ console.error('[Auth.register] CATCH ERROR:', err.message); setBtn('reg-btn',false,'CREATE ACCOUNT'); showFmAlert('reg-alert','Error: '+err.message); });
   },
@@ -538,6 +545,10 @@ console.log('[Crown Pesa] Head script loaded OK — App, Auth, BetPanel ready');
 function switchTab(btn,tab){
   document.querySelectorAll('.bet-tab').forEach(function(b){b.classList.remove('active');});
   btn.classList.add('active');
+  var bp = document.querySelector('.bet-panel');
+  var ab = document.getElementById('auto-bet-panel');
+  if (bp) bp.style.display = tab==='auto' ? 'none' : 'block';
+  if (ab) ab.style.display = tab==='auto' ? 'block' : 'none';
 }
 document.addEventListener('click',function(e){
   if(e.target&&e.target.classList&&e.target.classList.contains('modal-backdrop'))
@@ -575,6 +586,7 @@ document.addEventListener('click',function(e){
 <div class="mode-bar fun" id="mode-bar">
   <span id="mode-dot" style="color:#ff8800">&#9679;</span>
   <span id="mode-text">FUN MODE &#8212; Register to play</span>
+  <span id="mode-round" style="font-size:.6rem;color:rgba(255,255,255,.25);margin-left:8px"></span>
 </div>
 
 <div class="main-layout">
@@ -589,16 +601,32 @@ document.addEventListener('click',function(e){
           <span class="crash-label">CRASHED</span>
         </div>
       </div>
-      <svg class="plane" id="plane" viewBox="0 0 120 52" xmlns="http://www.w3.org/2000/svg">
-        <ellipse cx="55" cy="26" rx="52" ry="10" fill="#cc0000"/>
-        <path d="M105,26 C115,21 122,26 115,26 C122,26 115,31 105,26Z" fill="#ff4444"/>
-        <polygon points="40,26 72,5 84,26 72,30" fill="#ee1111"/>
-        <polygon points="28,26 50,15 55,26 50,29" fill="#cc0000"/>
-        <polygon points="8,26 20,26 13,9" fill="#990000"/>
-        <polygon points="4,26 22,26 19,32 5,28" fill="#990000"/>
-        <ellipse cx="82" cy="21" rx="12" ry="6" fill="#ff9999" opacity=".6"/>
-        <ellipse cx="5" cy="26" rx="6" ry="5" fill="#ff5500" opacity=".9"/>
-        <ellipse cx="5" cy="26" rx="3" ry="3" fill="#ffdd00"/>
+      <svg class="plane" id="plane" viewBox="0 0 140 60" xmlns="http://www.w3.org/2000/svg">
+        <!-- Main fuselage -->
+        <ellipse cx="65" cy="30" rx="60" ry="11" fill="#cc0000"/>
+        <!-- Nose cone -->
+        <path d="M122,30 Q138,28 138,30 Q138,32 122,30Z" fill="#ff3333"/>
+        <!-- Cockpit glass -->
+        <ellipse cx="96" cy="25" rx="14" ry="7" fill="#ff9999" opacity=".55"/>
+        <ellipse cx="98" cy="24" rx="9"  ry="4" fill="#ffeeee" opacity=".3"/>
+        <!-- Main swept wing -->
+        <polygon points="48,30 85,6 100,30 85,35"  fill="#dd1111"/>
+        <!-- Secondary canard wing -->
+        <polygon points="34,30 54,16 62,30 54,33"  fill="#bb0000"/>
+        <!-- Vertical tail fin -->
+        <polygon points="10,30 22,30 16,10"         fill="#990000"/>
+        <!-- Horizontal stabilizer -->
+        <polygon points="5,30 26,30 22,36 6,32"    fill="#880000"/>
+        <!-- Engine pod under wing -->
+        <ellipse cx="72" cy="38" rx="16" ry="5"    fill="#aa0000"/>
+        <!-- Exhaust glow -->
+        <ellipse cx="6"  cy="30" rx="7"  ry="6"    fill="#ff5500" opacity=".9"/>
+        <ellipse cx="6"  cy="30" rx="4"  ry="3.5"  fill="#ffcc00"/>
+        <ellipse cx="6"  cy="30" rx="2"  ry="2"    fill="#ffffff" opacity=".8"/>
+        <!-- Window strip -->
+        <rect x="74" y="25" width="22" height="4" rx="2" fill="#ffcccc" opacity=".25"/>
+        <!-- Wing edge highlight -->
+        <line x1="85" y1="6" x2="100" y2="30" stroke="#ff4444" stroke-width="1" opacity=".4"/>
       </svg>
       <div class="round-label" id="round-label">ROUND #&#8212;</div>
     </div>
@@ -606,6 +634,36 @@ document.addEventListener('click',function(e){
     <div class="bet-tabs">
       <button class="bet-tab active" onclick="switchTab(this,'stake')">STAKE SELECTOR</button>
       <button class="bet-tab"        onclick="switchTab(this,'auto')">AUTO BET</button>
+    </div>
+
+    <!-- AUTO BET PANEL -->
+    <div id="auto-bet-panel" style="display:none;padding:10px">
+      <div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:8px;padding:14px">
+        <div style="font-size:.8rem;color:var(--gold);margin-bottom:12px;font-family:var(--fnum);font-weight:700">AUTO BET SETTINGS</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <div>
+            <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px">Bet amount</div>
+            <input type="number" id="ab-amount" value="50" min="1" style="width:100%;background:#111;border:1px solid var(--bdr);color:#fff;padding:6px 8px;border-radius:5px;font-size:.85rem">
+          </div>
+          <div>
+            <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px">Rounds</div>
+            <input type="number" id="ab-rounds" value="10" min="1" max="100" style="width:100%;background:#111;border:1px solid var(--bdr);color:#fff;padding:6px 8px;border-radius:5px;font-size:.85rem">
+          </div>
+          <div>
+            <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px">Cash out at</div>
+            <input type="number" id="ab-cashout" value="2.00" min="1.01" step="0.01" style="width:100%;background:#111;border:1px solid var(--bdr);color:#fff;padding:6px 8px;border-radius:5px;font-size:.85rem">
+          </div>
+          <div>
+            <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px">Stop if loss &gt;</div>
+            <input type="number" id="ab-stop-loss" value="500" min="0" style="width:100%;background:#111;border:1px solid var(--bdr);color:#fff;padding:6px 8px;border-radius:5px;font-size:.85rem">
+          </div>
+        </div>
+        <div id="ab-status" style="font-size:.72rem;color:var(--muted);margin-bottom:8px;min-height:16px;text-align:center"></div>
+        <div style="display:flex;gap:8px">
+          <button id="ab-start-btn" class="bet-btn idle" style="flex:1;font-size:.82rem" onclick="AutoBet.start()">START AUTO BET</button>
+          <button class="bet-btn loading" style="flex:0 0 70px;font-size:.78rem" onclick="AutoBet.stop()">STOP</button>
+        </div>
+      </div>
     </div>
 
     <div class="bet-panel">
@@ -657,6 +715,9 @@ document.addEventListener('click',function(e){
   </div>
 
   <div class="sidebar">
+    <div id="sidebar-bal" style="display:none;padding:6px 12px;background:var(--bg3);border-bottom:1px solid var(--bdr);font-size:.72rem;color:var(--muted)">
+      Balance: <span id="sb-sym">KSh</span> <strong id="sb-bal" style="color:var(--gold)">0.00</strong>
+    </div>
     <div class="sidebar-tabs">
       <button class="sidebar-tab active" onclick="Sidebar.show('live',this)">LIVE</button>
       <button class="sidebar-tab"        onclick="Sidebar.show('my',this)">MY BETS</button>
@@ -731,6 +792,10 @@ document.addEventListener('click',function(e){
         <button onclick="document.getElementById('dep-amt').value=5000">5,000</button>
       </div>
       <button class="form-submit" id="dep-btn" onclick="Wallet.deposit()">PAY WITH PAYSTACK</button>
+      <p id="dep-verify-hint" style="display:none;margin-top:10px;font-size:12px;color:#888;text-align:center">
+        Returned from Paystack? 
+        <a href="#" onclick="Wallet.verifyPending();return false;" style="color:var(--green)">Verify payment</a>
+      </p>
     </div>
     <div id="w-wit" style="display:none;margin-top:16px">
       <div class="form-alert" id="wit-alert" style="display:none"></div>
@@ -977,7 +1042,8 @@ window.Canvas = (function() {
     stopAll(); state='crashed';
     if (plane) plane.style.display='none';
     if (multEl) multEl.classList.add('hidden');
-    if (crashV) crashV.textContent=parseFloat(cp).toFixed(2)+'x';
+    var cpNum = parseFloat(cp);
+    if (crashV) crashV.textContent = (cpNum < 100 ? cpNum.toFixed(2) : Math.floor(cpNum).toLocaleString()) + 'x';
     if (crashEl) crashEl.classList.remove('hidden');
     drawCurve();
     if (wrap) { wrap.classList.add('flash'); setTimeout(function(){wrap.classList.remove('flash');},400); }
@@ -1113,8 +1179,10 @@ window.Canvas = (function() {
     if (!currentUser) return;
     var sym = (currentUser.currency && currentUser.currency.sym) || 'KSh';
     var bal = parseFloat(currentUser.balance || 0).toFixed(2);
-    setText('nav-sym', sym); setText('nav-bal', bal);
-    setText('w-sym',   sym); setText('w-bal',   bal);
+    ['nav-sym','w-sym','sb-sym'].forEach(function(id){ setText(id,sym); });
+    ['nav-bal','w-bal','sb-bal'].forEach(function(id){ setText(id,bal); });
+    var sbBal = g('sidebar-bal');
+    if (sbBal) sbBal.style.display = 'block';
   }
 
   function fetchMe() {
@@ -1149,7 +1217,11 @@ window.Canvas = (function() {
       var bs = betState[s];
       if (phase === 'waiting') {
         if (!bs)             setBetBtn(s, 'idle',     'BET');
-        if (bs === 'placed') setBetBtn(s, 'placed',   '✓ PLACED');
+        if (bs === 'placed') {
+          var aoEl2 = g('ac-'+s), aoInp = g('ao-'+s);
+          var acLabel = (aoEl2 && aoEl2.checked && aoInp) ? ' @ ' + parseFloat(aoInp.value).toFixed(2) + 'x' : '';
+          setBetBtn(s, 'placed', '✓ PLACED' + acLabel);
+        }
       } else if (phase === 'flying') {
         if (bs === 'placed') setBetBtn(s, 'cashout',  'CASH OUT');
         if (!bs)             setBetBtn(s, 'inactive', 'WAIT...');   // faded — can't bet mid-round
@@ -1170,13 +1242,15 @@ window.Canvas = (function() {
   function renderHistoryBar(rounds) {
     if (!rounds || !rounds.length) return;
     // Merge with existing, deduplicate by id, keep newest first
-    var existing = _allHistory.map(function(r){ return r.id; });
+    var seen = {};
+    _allHistory.forEach(function(r){ seen[r.id] = true; });
     rounds.forEach(function(r) {
-      if (!existing.includes(r.id)) _allHistory.unshift(r);
+      if (!seen[r.id]) { _allHistory.push(r); seen[r.id] = true; }
     });
     _allHistory.sort(function(a,b){ return b.id - a.id; });
+    if (_allHistory.length > 200) _allHistory = _allHistory.slice(0,200);
     // Persist to localStorage — survives refresh AND server restart
-    try { localStorage.setItem('cp_history_v2', JSON.stringify(_allHistory.slice(0,200))); } catch(e){}
+    try { localStorage.setItem('cp_history_v2', JSON.stringify(_allHistory)); } catch(e){}
     drawHistoryBar();
   }
 
@@ -1305,7 +1379,9 @@ window.Canvas = (function() {
     socket.on('game:state', function(snap) { console.log('[Socket] game:state:', JSON.stringify(snap));
       currentRoundId = snap.roundId || null;
       var lbl = g('round-label');
+      var mr  = g('mode-round');
       if (lbl) lbl.textContent = snap.roundId ? 'ROUND #' + snap.roundId : 'ROUND #—';
+      if (mr)  mr.textContent  = snap.roundId ? '#' + snap.roundId : '';
 
       if (snap.status === 'waiting') {
         gameStatus = 'waiting';
@@ -1341,6 +1417,8 @@ window.Canvas = (function() {
     });
 
     socket.on('round:crash', function(d) {
+      // Notify auto-bet engine
+      if (window.AutoBet && window.AutoBet.active) setTimeout(function(){ window.AutoBet.onCrash(); }, 100);
       gameStatus = 'crashed';
       if (window.Canvas) Canvas.showCrash(d.crashPoint);
       updateBetButtons('idle');
@@ -1516,6 +1594,14 @@ window.Canvas = (function() {
       if (dep) dep.style.display = t === 'dep' ? 'block' : 'none';
       if (wit) wit.style.display = t === 'wit' ? 'block' : 'none';
       if (t === 'wit') this.loadBanks();
+      if (t === 'dep') {
+        // Show verify hint if there's a pending payment reference
+        var hint = g('dep-verify-hint');
+        if (hint) {
+          var ref = null; try { ref = sessionStorage.getItem('ps_ref'); } catch(ex){}
+          hint.style.display = ref ? 'block' : 'none';
+        }
+      }
     },
     loadBanks: function() {
       httpGet('/api/banks', function(d) {
@@ -1555,7 +1641,7 @@ window.Canvas = (function() {
           try {
             var handler = PaystackPop.setup({
               key:      PAYSTACK_KEY,
-              email:    (currentUser && currentUser.email) ? currentUser.email : d.email || currentUser.email || '',
+              email:    (currentUser && currentUser.email) ? currentUser.email : (d.email || (function(){ try{return localStorage.getItem('cp_pending_email')||'';}catch(ex){return '';} }())),
               amount:   Math.round(amt * 100),
               currency: (currentUser.currency && currentUser.currency.code) || 'KES',
               ref:      d.reference,
@@ -1591,6 +1677,26 @@ window.Canvas = (function() {
         }
       });
     },
+    verifyPending: function() {
+      var ref = null;
+      try { ref = sessionStorage.getItem('ps_ref'); } catch(ex){}
+      if (!ref) { toast('No pending payment reference found', 'err'); return; }
+      var hint = g('dep-verify-hint');
+      if (hint) hint.style.display = 'none';
+      httpGet('/api/deposit/verify/' + ref, function(v) {
+        console.log('[Wallet.verifyPending]', JSON.stringify(v));
+        if (v.ok) {
+          toast('✅ Deposit verified! Balance updated.', 'ok');
+          if (currentUser) currentUser.balance = v.newBalance;
+          updateBalanceUI();
+          try { sessionStorage.removeItem('ps_ref'); } catch(ex){}
+          window.App.closeModal('modal-wallet');
+        } else {
+          toast(v.msg || 'Payment not confirmed yet', 'err');
+        }
+      });
+    },
+
     withdraw: function() {
       var amt  = g('wit-amt')  ? parseFloat(g('wit-amt').value)        : 0;
       var bank = g('wit-bank') ? g('wit-bank').value                   : '';
@@ -1798,6 +1904,122 @@ window.Canvas = (function() {
     });
   };
 
+  // ── AUTO BET ENGINE ─────────────────────────────────────────
+  var AutoBet = {
+    active:       false,
+    roundsLeft:   0,
+    totalLoss:    0,
+    startBalance: 0,
+
+    start: function() {
+      if (!currentUser) { window.App.openModal('modal-login'); return; }
+      var amount   = parseFloat(document.getElementById('ab-amount')   ? document.getElementById('ab-amount').value   : 0) || 0;
+      var rounds   = parseInt(document.getElementById('ab-rounds')     ? document.getElementById('ab-rounds').value   : 0) || 0;
+      var cashout  = parseFloat(document.getElementById('ab-cashout')  ? document.getElementById('ab-cashout').value  : 2) || 2;
+      var stopLoss = parseFloat(document.getElementById('ab-stop-loss')? document.getElementById('ab-stop-loss').value: 0) || 0;
+
+      if (amount <= 0) { toast('Enter a valid bet amount', 'err'); return; }
+      if (rounds <= 0) { toast('Enter number of rounds', 'err'); return; }
+      if (cashout < 1.01) { toast('Cash out must be at least 1.01x', 'err'); return; }
+
+      // Store auto-cashout on both bet inputs
+      ['1','2'].forEach(function(s) {
+        var ac = document.getElementById('ac-'+s);
+        var ao = document.getElementById('ao-'+s);
+        var ba = document.getElementById('bet-amt-'+s);
+        if (ac) { ac.checked = true; }
+        if (ao) { ao.value = cashout.toFixed(2); ao.disabled = false; }
+        if (ba) { ba.value = amount; }
+      });
+
+      this.active     = true;
+      this.roundsLeft = rounds;
+      this.totalLoss  = 0;
+      this.startBalance = currentUser ? parseFloat(currentUser.balance||0) : 0;
+      this.stopLoss   = stopLoss;
+      this.amount     = amount;
+
+      var btn = document.getElementById('ab-start-btn');
+      if (btn) { btn.className = 'bet-btn placed'; btn.textContent = 'RUNNING...'; }
+      this._updateStatus();
+      toast('Auto bet started: ' + rounds + ' rounds @ ' + amount + ' → ' + cashout + 'x', 'ok');
+
+      // Place first bet if waiting
+      if (gameStatus === 'waiting') this._placeBet();
+    },
+
+    stop: function() {
+      this.active = false;
+      var btn = document.getElementById('ab-start-btn');
+      if (btn) { btn.className = 'bet-btn idle'; btn.textContent = 'START AUTO BET'; }
+      this._updateStatus('Stopped');
+      toast('Auto bet stopped', 'ok');
+    },
+
+    _placeBet: function() {
+      if (!this.active || this.roundsLeft <= 0) { this.stop(); return; }
+      if (!currentUser) { this.stop(); return; }
+      // Check stop-loss
+      var currentBal = parseFloat(currentUser.balance||0);
+      if (this.stopLoss > 0 && (this.startBalance - currentBal) >= this.stopLoss) {
+        toast('Auto bet stopped: stop-loss of ' + this.stopLoss + ' reached', 'err');
+        this.stop(); return;
+      }
+      // Trigger bet slot 1
+      if (socket && gameStatus === 'waiting' && !betState[1]) {
+        betState[1] = 'placed';
+        setBetBtn(1, 'placed', '✓ AUTO');
+        socket.emit('bet:place', { amount: this.amount, autoCashout: this.cashout || 2 });
+      }
+    },
+
+    _onRoundResult: function() {
+      if (!this.active) return;
+      this.roundsLeft--;
+      this._updateStatus();
+      if (this.roundsLeft <= 0) { this.stop(); toast('Auto bet complete!', 'ok'); }
+    },
+
+    _updateStatus: function(msg) {
+      var el = document.getElementById('ab-status');
+      if (!el) return;
+      if (msg) { el.textContent = msg; el.style.color = 'var(--muted)'; return; }
+      if (!this.active) { el.textContent = ''; return; }
+      var bal = currentUser ? parseFloat(currentUser.balance||0) : 0;
+      var pnl = bal - this.startBalance;
+      el.innerHTML = 'Round <strong style="color:#fff">' + (this.originalRounds - this.roundsLeft + 1) + '/' + this.originalRounds + '</strong>'
+        + ' &nbsp; P&L: <strong style="color:' + (pnl>=0?'var(--green)':'#ff6666') + '">' + (pnl>=0?'+':'') + pnl.toFixed(2) + '</strong>';
+    },
+
+    // Called when round crashes — queue next bet
+    onCrash: function() {
+      if (!this.active) return;
+      this._onRoundResult();
+      if (this.active && this.roundsLeft > 0) {
+        // Wait for next waiting phase, then bet
+        var self = this;
+        var waitForWaiting = function() {
+          if (!self.active) return;
+          if (gameStatus === 'waiting') { self._placeBet(); }
+          else { setTimeout(waitForWaiting, 200); }
+        };
+        setTimeout(waitForWaiting, 500);
+      }
+    }
+  };
+  AutoBet.originalRounds = 10;
+  AutoBet.cashout = 2.0;
+  // Override start to capture originalRounds
+  var _origStart = AutoBet.start.bind(AutoBet);
+  AutoBet.start = function() {
+    var r = parseInt(document.getElementById('ab-rounds') ? document.getElementById('ab-rounds').value : 10) || 10;
+    var c = parseFloat(document.getElementById('ab-cashout') ? document.getElementById('ab-cashout').value : 2) || 2;
+    AutoBet.originalRounds = r;
+    AutoBet.cashout = c;
+    _origStart();
+  };
+  window.AutoBet = AutoBet;
+
   window.adminSeedDemo = function() {
     if (!confirm('Create 20 demo users? This should only be done once.')) return;
     httpPost('/api/admin/seed-demo', {}, function(r) {
@@ -1848,6 +2070,8 @@ window.Canvas = (function() {
     if (d.ok && d.user) {
       console.log('[Boot] Logged in as:', d.user.username);
       currentUser = d.user;
+      // Store email for Paystack (persists across page reloads)
+      try { if(d.user.email) localStorage.setItem('cp_pending_email', d.user.email); } catch(ex){}
       onUserLogin();
     } else {
       console.log('[Boot] No session. Connecting as guest...');

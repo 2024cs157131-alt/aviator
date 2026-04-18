@@ -963,8 +963,13 @@ window.Canvas = (function() {
 
   function resize() {
     if (!cv || !wrap) return;
-    cv.width  = wrap.clientWidth  || 700;
-    cv.height = wrap.clientHeight || 320;
+    var w = wrap.clientWidth  || 700;
+    var h = wrap.clientHeight || 320;
+    // If container reports 0 (not yet laid out), force reasonable defaults
+    if (w < 10) w = 700;
+    if (h < 10) h = 320;
+    cv.width  = w;
+    cv.height = h;
   }
 
   function calcMult(ms) { return Math.max(1, Math.exp(0.00006 * ms)); }
@@ -1190,14 +1195,17 @@ window.Canvas = (function() {
   function showFlying(sa) {
     stopAll(); state='flying'; startedAt=sa; points=[];
     if (window.Sound) window.Sound.startEngine();
-    var elapsed=Date.now()-sa;
-    for (var ms=0;ms<elapsed;ms+=80) {
-      points.push({x:elToX(ms/1000),y:multToY(calcMult(ms))});
+    // Catch-up: replay missed frames since round started
+    var elapsed = Date.now() - sa;
+    if (elapsed < 0) elapsed = 0;            // server ahead of client
+    if (elapsed > 120000) elapsed = 120000;  // cap at 2 min — sanity check
+    for (var ms = 0; ms < elapsed; ms += 80) {
+      points.push({x:elToX(ms/1000), y:multToY(calcMult(ms))});
     }
     if (crashEl) crashEl.classList.add('hidden');
     if (multEl) { multEl.classList.remove('hidden'); multEl.textContent='1.00x'; multEl.className='mult-display'; }
-    earnEl = document.getElementById('earn-display'); // refresh reference
-    AF=requestAnimationFrame(flyLoop);
+    earnEl = document.getElementById('earn-display');
+    AF = requestAnimationFrame(flyLoop);
   }
 
   function showCrash(cp) {
@@ -1888,7 +1896,8 @@ window.Sound = (function () {
       console.error('[Socket] Connection error:', err.message);
     });
 
-    socket.on('game:state', function(snap) { console.log('[Socket] game:state:', JSON.stringify(snap));
+    socket.on('game:state', function(snap) {
+      console.log('[Socket] game:state status:', snap.status, 'roundId:', snap.roundId);
       currentRoundId = snap.roundId || null;
       var lbl = g('round-label');
       var mr  = g('mode-round');
@@ -1901,8 +1910,14 @@ window.Sound = (function () {
         updateBetButtons('waiting');
       } else if (snap.status === 'in_progress') {
         gameStatus = 'flying';
-        var drift = snap.serverNow ? (Date.now() - snap.serverNow) : 0;
-        if (window.Canvas) Canvas.showFlying(snap.startedAt + drift);
+        // Clock drift correction: snap.serverNow tells us server time at snapshot
+        var drift = (snap.serverNow && snap.serverNow > 0) ? (Date.now() - snap.serverNow) : 0;
+        // Clamp drift to ±5s to avoid wild corrections
+        if (drift >  5000) drift =  5000;
+        if (drift < -5000) drift = -5000;
+        var correctedStart = snap.startedAt + drift;
+        console.log('[Socket] Flying: drift=' + drift + 'ms correctedStart=' + correctedStart);
+        if (window.Canvas) Canvas.showFlying(correctedStart);
         updateBetButtons('flying');
       } else if (snap.status === 'crashed') {
         gameStatus = 'crashed';

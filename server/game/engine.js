@@ -472,7 +472,7 @@ async function processCashout(userId, roundId, multiplier, betId, betKey) {
 
 // ── STATE SNAPSHOT ───────────────────────────────────────────
 function getStateSnapshot() {
-  if (!currentRound) return { status: 'no_round' };
+  if (!currentRound) return { status: 'no_round', serverNow: Date.now() };
 
   const snap = {
     roundId:        currentRound.id,

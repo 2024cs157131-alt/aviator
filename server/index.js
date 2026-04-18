@@ -29,13 +29,14 @@ app.set('trust proxy', 1);
 // ── SESSION (memory store — no Redis dependency) ─────────────
 const sessionMiddleware = session({
   secret:            process.env.SESSION_SECRET || 'crownpesa_dev_secret_change_me',
-  resave:            false,
+  resave:            true,          // re-save on every request — prevents session loss
   saveUninitialized: false,
+  rolling:           true,          // reset expiry on every request
   cookie: {
     secure:   process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge:   7 * 24 * 60 * 60 * 1000,
-    sameSite: 'lax',
+    maxAge:   7 * 24 * 60 * 60 * 1000,  // 7 days
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
   },
 });
 app.use(sessionMiddleware);

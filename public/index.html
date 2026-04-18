@@ -1,0 +1,2736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crown Pesa Aviator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── VARIABLES ──────────────────────────────────────────────── */
+:root {
+  --bg:    #07070f;
+  --bg2:   #0d0d1e;
+  --bg3:   #161628;
+  --bdr:   #252540;
+  --red:   #cc0000;
+  --red2:  #ff2222;
+  --green: #00cc44;
+  --gold:  #ffaa00;
+  --muted: #5a5a8a;
+  --text:  #e0e0ff;
+  --fn:    'Rajdhani', sans-serif;
+  --fnum:  'Orbitron', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; }
+body { font-family: var(--fn); background: var(--bg); color: var(--text);
+       font-size: 15px; overflow-x: hidden; min-height: 100%; }
+.hidden { display: none !important; }
+
+/* ── NAV ─────────────────────────────────────────────────────── */
+.nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 12px; height: 52px; min-height: 52px;
+  background: linear-gradient(90deg,#10001a,#1a0010);
+  border-bottom: 2px solid var(--red);
+  position: sticky; top: 0; z-index: 100;
+  gap: 8px;
+}
+.brand {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  font-family: var(--fnum); font-weight: 900; font-size: 1rem;
+  letter-spacing: 1px; color: #fff;
+}
+.brand-icon {
+  width: 32px; height: 32px; background: var(--red); border-radius: 6px;
+  display: flex; align-items: center; justify-content: center; font-size: .95rem;
+  flex-shrink: 0;
+}
+.nav-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.nav-auth  { display: flex; align-items: center; gap: 5px; flex-wrap: nowrap; }
+.balance-chip {
+  background: var(--bg3); border: 1px solid var(--bdr); border-radius: 20px;
+  padding: 3px 10px; font-family: var(--fnum); font-size: .75rem; color: var(--gold);
+  white-space: nowrap;
+}
+
+/* ── BUTTONS ─────────────────────────────────────────────────── */
+.btn {
+  padding: 6px 13px; border: none; border-radius: 6px; cursor: pointer;
+  font-family: var(--fn); font-weight: 700; font-size: .82rem;
+  text-decoration: none; display: inline-block; transition: all .15s;
+  white-space: nowrap;
+}
+.btn-red     { background: var(--red);  color: #fff; }
+.btn-red:hover { background: var(--red2); }
+.btn-outline { background: transparent; border: 2px solid var(--red); color: #fff; }
+.btn-outline:hover { background: var(--red); }
+.btn-green   { background: #004d1a; border: 2px solid var(--green); color: var(--green); }
+.btn-green:hover { background: #006622; }
+.btn-admin   { background: #332200; border: 2px solid var(--gold); color: var(--gold); }
+.btn-sm      { padding: 4px 9px; font-size: .75rem; }
+
+/* ── HISTORY BAR ─────────────────────────────────────────────── */
+.history-wrap {
+  display: flex; align-items: center;
+  background: #0a0a18; border-bottom: 1px solid var(--bdr);
+}
+.history-bar {
+  display: flex; gap: 5px; padding: 6px 8px; flex: 1;
+  overflow-x: auto; white-space: nowrap; scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.history-bar::-webkit-scrollbar { display: none; }
+.history-toggle {
+  padding: 0 10px; background: none; border: none; border-left: 1px solid var(--bdr);
+  color: var(--muted); cursor: pointer; font-size: .7rem; height: 100%; flex-shrink: 0;
+}
+.history-toggle:hover { color: #fff; }
+.history-expanded {
+  background: #070710; border-bottom: 2px solid var(--bdr);
+  padding: 8px 12px; max-height: 220px; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: #333 transparent;
+}
+.history-expanded::-webkit-scrollbar { width: 4px; }
+.history-expanded::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+.history-expanded-grid {
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
+.h-chip {
+  padding: 3px 9px; border-radius: 12px; flex-shrink: 0;
+  font-family: var(--fnum); font-size: .7rem; font-weight: 700; cursor: default;
+  animation: chipIn .4s ease;
+}
+@keyframes chipIn { from { opacity:0; transform:scale(.7); } to { opacity:1; transform:scale(1); } }
+.h-low  { background: #3a0000; color: #ff6666; }
+.h-mid  { background: #1a2600; color: #88cc44; }
+.h-high { background: #002a3a; color: #44ccff; }
+.h-moon { background: #1a1a00; color: #ffcc00; }
+
+/* ── LAYOUT ──────────────────────────────────────────────────── */
+.main-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  min-height: calc(100vh - 90px);
+}
+
+/* ── GAME COLUMN ─────────────────────────────────────────────── */
+.game-col { display: flex; flex-direction: column; border-right: 1px solid var(--bdr); min-width: 0; }
+
+.mode-bar {
+  text-align: center; padding: 5px 8px; font-size: .72rem;
+  font-weight: 700; letter-spacing: 2px;
+  border-bottom: 1px solid var(--bdr);
+}
+.mode-bar.live { background: #001800; color: var(--green); }
+.mode-bar.live #mode-dot { animation: dotPulse 1.5s ease-in-out infinite; }
+.mode-bar.fun  { background: #1a0a00; color: #ff8800; }
+@keyframes dotPulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ── CANVAS ──────────────────────────────────────────────────── */
+.canvas-wrap {
+  position: relative; flex: 1; min-height: 300px;
+  background: #07070f; overflow: hidden;
+}
+#game-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.canvas-overlay {
+  position: absolute; inset: 0; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 6px;
+}
+.earn-display {
+  font-family: var(--fnum); font-size: clamp(.85rem,2.8vw,1.5rem);
+  font-weight: 700; color: rgba(255,255,255,.7);
+  text-align: center; letter-spacing: .04em;
+  text-shadow: 0 0 20px rgba(255,255,255,.15);
+  transition: color .2s;
+  line-height: 1;
+  margin-top: 2px;
+}
+.earn-display.green  { color: rgba(136,255,68,.85); }
+.earn-display.gold   { color: rgba(255,204,0,.85); }
+.earn-display.orange { color: rgba(255,136,0,.85); }
+.earn-display.mega   { color: rgba(255,0,255,.85); }
+.mult-display {
+  font-family: var(--fnum); font-size: clamp(2.2rem, 8vw, 4.5rem);
+  font-weight: 900; color: #fff; text-align: center; line-height: 1;
+  text-shadow: 0 0 40px rgba(255,255,255,.2);
+  animation: multPulse 2s ease-in-out infinite;
+}
+.mult-display.green  { color: #88ff44; }
+.mult-display.gold   { color: #ffcc00; }
+.mult-display.orange { color: #ff8800; }
+@keyframes multPulse {
+  0%,100%{text-shadow:0 0 30px rgba(255,255,255,.15)}
+  50%{text-shadow:0 0 70px rgba(255,200,0,.5),0 0 120px rgba(255,100,0,.3)}
+}
+.mult-display.mega { color:#ff00ff; font-size: clamp(1.8rem,6vw,3.5rem); animation:megaPulse 0.6s ease-in-out infinite; }
+@keyframes megaPulse{0%,100%{text-shadow:0 0 30px #ff00ff80}50%{text-shadow:0 0 80px #ff00ff,0 0 160px #aa00ff80}}
+.crash-display { display:flex; flex-direction:column; align-items:center; gap:3px; animation:crashShake .4s ease; }
+.crash-emoji   { font-size: clamp(1.5rem,5vw,2.5rem); }
+.crash-value   {
+  font-family: var(--fnum); font-size: clamp(2rem,7vw,3.5rem);
+  font-weight: 900; color: var(--red2);
+  text-shadow: 0 0 60px rgba(255,0,0,.8);
+}
+.crash-label   { font-family: var(--fnum); font-size: .75rem; letter-spacing: 4px; color: rgba(255,80,80,.8); }
+@keyframes crashShake {
+  0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)}
+  75%{transform:translateX(6px)}
+}
+.plane {
+  position: absolute; display: none;
+  pointer-events: none;
+  filter: drop-shadow(0 0 6px rgba(255,80,0,.7));
+}
+.round-label {
+  position: absolute; bottom: 6px; right: 10px;
+  font-size: .58rem; color: rgba(255,255,255,.2);
+  font-family: var(--fnum); letter-spacing: 1px;
+}
+.canvas-wrap::after {
+  content:''; position:absolute; inset:0;
+  background:rgba(255,0,0,0); pointer-events:none;
+  transition:background .15s; z-index:5;
+}
+.canvas-wrap.flash::after { background:rgba(255,0,0,.22); }
+
+/* ── BET TABS ────────────────────────────────────────────────── */
+.bet-tabs { display: flex; border-top: 1px solid var(--bdr); }
+.bet-tab {
+  flex: 1; padding: 8px 4px; text-align: center; cursor: pointer;
+  font-weight: 700; font-size: .75rem; background: var(--bg2);
+  border: none; color: var(--muted); border-bottom: 3px solid transparent;
+  transition: all .15s;
+}
+.bet-tab.active { background: var(--bg3); color: #fff; border-bottom-color: var(--red); }
+
+/* ── BET PANEL ───────────────────────────────────────────────── */
+.bet-panel { padding: 10px; background: var(--bg2); }
+.two-bets  { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.bet-box {
+  background: var(--bg3); border: 1px solid var(--bdr);
+  border-radius: 8px; padding: 10px; min-width: 0;
+}
+.bet-box-header { font-size: .65rem; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
+
+.amount-row { display: flex; align-items: center; gap: 3px; margin-bottom: 6px; }
+.amount-row input {
+  flex: 1; min-width: 0;
+  background: #111; border: 1px solid var(--bdr); color: #fff;
+  padding: 5px 4px; border-radius: 5px;
+  font-family: var(--fnum); font-size: .85rem; text-align: center;
+  width: 100%;
+}
+.stepper {
+  width: 26px; height: 26px; border-radius: 4px; border: 1px solid var(--bdr);
+  background: #111; color: #fff; cursor: pointer; font-size: .9rem;
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+}
+.x2-btn {
+  background: var(--bg2); border: 1px solid #333; color: #aaa;
+  padding: 2px 5px; border-radius: 3px; cursor: pointer;
+  font-size: .68rem; font-family: var(--fnum); flex-shrink: 0;
+}
+.quick-amts { display: flex; gap: 2px; margin-bottom: 6px; }
+.quick-amts button {
+  background: var(--bg2); border: 1px solid #333; color: #aaa;
+  padding: 2px 0; border-radius: 3px; cursor: pointer;
+  font-size: .67rem; flex: 1;
+}
+.quick-amts button:hover { background: #333; color: #fff; }
+
+.auto-cashout-row {
+  display: flex; align-items: center; gap: 4px;
+  margin-bottom: 8px; font-size: .68rem; flex-wrap: nowrap;
+}
+.auto-cashout-row span { white-space: nowrap; font-size: .65rem; }
+.toggle { position: relative; width: 30px; height: 16px; flex-shrink: 0; }
+.toggle input { opacity:0; width:0; height:0; position:absolute; }
+.toggle-slider {
+  position: absolute; cursor: pointer; inset: 0;
+  background: #333; border-radius: 16px; transition: .2s;
+}
+.toggle-slider::before {
+  content:''; position:absolute; width:10px; height:10px;
+  left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s;
+}
+.toggle input:checked + .toggle-slider { background: var(--red); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(14px); }
+.ac-input {
+  width: 52px; background: #111; border: 1px solid #444; color: #fff;
+  padding: 2px 4px; border-radius: 4px; font-family: var(--fnum); font-size: .75rem;
+  flex-shrink: 0;
+}
+
+.bet-btn {
+  width: 100%; padding: 9px 4px; border: none; border-radius: 6px;
+  font-family: var(--fn); font-weight: 700; font-size: .85rem;
+  cursor: pointer; letter-spacing: .5px; transition: all .15s;
+}
+.bet-btn.idle     { background: var(--red); color: #fff; }
+.bet-btn.idle:hover { background: var(--red2); }
+.bet-btn.placed   { background: #003300; border: 2px solid var(--green); color: var(--green); cursor: default; }
+.bet-btn.cashout  { background: var(--gold); color: #000; animation: goldPulse 1s infinite; }
+.bet-btn.loading  { background: #333; color: #666; cursor: not-allowed; }
+.bet-btn.inactive { background: #1a0000; color: #552222; border: 1px solid #330000; cursor: not-allowed; opacity: 0.5; }
+@keyframes goldPulse {
+  0%,100%{box-shadow:0 0 5px rgba(255,170,0,.3)}
+  50%{box-shadow:0 0 18px rgba(255,170,0,.8)}
+}
+
+/* ── SIDEBAR ─────────────────────────────────────────────────── */
+.sidebar { background: var(--bg2); display: flex; flex-direction: column; }
+.sidebar-tabs { display: flex; border-bottom: 1px solid var(--bdr); }
+.sidebar-tab {
+  flex: 1; padding: 8px 2px; text-align: center; cursor: pointer;
+  font-size: .68rem; font-weight: 700; color: var(--muted);
+  border: none; background: transparent; border-bottom: 3px solid transparent;
+  white-space: nowrap;
+}
+.sidebar-tab.active { color: #fff; border-bottom-color: var(--red); }
+.sidebar-body { flex: 1; overflow-y: auto; padding: 8px; }
+.live-bet-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 0; border-bottom: 1px solid #111; font-size: .76rem;
+}
+.lbr-user  { color: #aaa; }
+.lbr-amt   { color: var(--gold); font-family: var(--fnum); font-size: .7rem; }
+.lbr-co    { color: var(--green); font-family: var(--fnum); font-size: .68rem; }
+.lbr-lost  { color: var(--red); font-family: var(--fnum); font-size: .68rem; }
+.empty-msg { color: #444; font-size: .74rem; padding: 10px 4px; }
+
+/* ── MODALS ──────────────────────────────────────────────────── */
+.modal-backdrop {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.88); z-index: 200;
+  align-items: center; justify-content: center; padding: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+.modal-backdrop.open { display: flex; }
+.modal {
+  background: var(--bg2); border: 1px solid var(--bdr); border-radius: 12px;
+  padding: 22px; width: 100%; max-width: 400px;
+  max-height: 92vh; overflow-y: auto; position: relative;
+}
+.modal-wide { max-width: 680px; }
+.modal h2 { font-family: var(--fnum); color: #fff; margin-bottom: 16px; font-size: 1rem; }
+.modal-close {
+  position: absolute; top: 14px; right: 14px;
+  background: none; border: none; color: #555; font-size: 1.2rem; cursor: pointer;
+}
+.modal-close:hover { color: #fff; }
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: .75rem; color: var(--muted); margin-bottom: 4px; }
+.form-group input, .form-group select {
+  width: 100%; background: #111; border: 1px solid var(--bdr); color: #fff;
+  padding: 9px 10px; border-radius: 6px; font-size: .88rem; font-family: var(--fn);
+  -webkit-appearance: none;
+}
+.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--red); }
+.form-submit {
+  width: 100%; padding: 12px; background: var(--red); color: #fff;
+  border: none; border-radius: 6px; font-family: var(--fn);
+  font-weight: 700; font-size: .95rem; cursor: pointer; margin-top: 4px;
+  -webkit-appearance: none;
+}
+.form-submit:hover { background: var(--red2); }
+.form-submit:disabled { background: #555; cursor: not-allowed; }
+.form-switch { text-align: center; margin-top: 12px; font-size: .82rem; color: var(--muted); }
+.form-switch a { color: var(--red); cursor: pointer; }
+.form-alert {
+  display: none; padding: 9px 12px; border-radius: 6px;
+  margin-bottom: 12px; font-size: .8rem; line-height: 1.5;
+}
+.form-alert.error   { display:block; background: #2a0000; border: 1px solid #660000; color: #ff9999; }
+.form-alert.success { display:block; background: #002200; border: 1px solid #004400; color: #99ff99; }
+.form-alert.info    { display:block; background: #001a33; border: 1px solid #003366; color: #88ccff; }
+
+/* Wallet */
+.wallet-balance { text-align:center; padding:16px; background:#0a0a18; border-radius:8px; margin-bottom:12px; }
+.wallet-amount  { font-family:var(--fnum); font-size:1.6rem; color:var(--gold); font-weight:900; }
+.wallet-label   { color:var(--muted); font-size:.74rem; margin-top:3px; }
+.wallet-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:0; }
+.wallet-tab     { margin-top:16px; }
+
+/* ── TOAST ───────────────────────────────────────────────────── */
+.toast-container {
+  position: fixed; top: 60px; right: 12px; z-index: 9999;
+  display: flex; flex-direction: column; gap: 5px; pointer-events: none;
+  max-width: calc(100vw - 24px);
+}
+.toast {
+  background: var(--bg3); border: 1px solid var(--bdr); border-radius: 7px;
+  padding: 9px 13px; font-size: .78rem; max-width: 260px;
+  animation: toastIn .25s ease; word-break: break-word;
+}
+.toast.ok  { border-color: var(--green); color: var(--green); }
+.toast.err { border-color: var(--red);   color: #ff9999; }
+.toast.win { border-color: var(--gold);  color: var(--gold); font-weight: 700; }
+@keyframes toastIn { from{transform:translateX(110%)} to{transform:translateX(0)} }
+
+/* ── ADMIN ───────────────────────────────────────────────────── */
+.admin-stat-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:18px; }
+.admin-stat { background:var(--bg3); border:1px solid var(--bdr); border-radius:8px; padding:12px; text-align:center; }
+.admin-stat .val { font-family:var(--fnum); font-size:1.4rem; color:var(--red); font-weight:700; }
+.admin-stat .lbl { color:var(--muted); font-size:.73rem; margin-top:3px; }
+.admin-section h3 { color:var(--red); font-size:.88rem; margin-bottom:8px; margin-top:16px; }
+.admin-crash-ctrl {
+  background:#1a0000; border:2px solid var(--red); border-radius:8px;
+  padding:12px 14px; margin-bottom:16px; display:flex;
+  align-items:center; gap:10px; flex-wrap:wrap;
+}
+.admin-table { width:100%; border-collapse:collapse; font-size:.76rem; }
+.admin-table th, .admin-table td { padding:7px 8px; border-bottom:1px solid #111; text-align:left; }
+.admin-table th { color:var(--muted); font-weight:600; }
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — everything below 640px
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 860px) {
+  .main-layout { grid-template-columns: 1fr; display: flex; flex-direction: column; }
+  .sidebar     { display: flex; flex-direction: column; max-height: 260px; border-top: 2px solid var(--bdr); border-right: none; }
+  .sidebar-body { max-height: 200px; overflow-y: auto; }
+  .game-col    { border-right: none; }
+}
+
+@media (max-width: 640px) {
+  /* Nav — compress on small screens */
+  .nav { padding: 0 8px; height: 48px; }
+  .brand span { display: none; } /* hide text, keep icon */
+  .btn { padding: 5px 10px; font-size: .78rem; }
+  .btn-sm { padding: 4px 8px; font-size: .72rem; }
+  .balance-chip { padding: 3px 8px; font-size: .7rem; }
+  /* Sidebar visible on mobile with horizontal scrollable tabs */
+  .sidebar-tabs { overflow-x: auto; scrollbar-width: none; }
+  .sidebar-tabs::-webkit-scrollbar { display: none; }
+  .sidebar-tab { min-width: 60px; font-size: .65rem; }
+
+  /* Canvas shorter on mobile */
+  .canvas-wrap { min-height: 240px; }
+
+  /* Bet panel — single column on very small screens */
+  .two-bets { grid-template-columns: 1fr; gap: 8px; }
+
+  /* Bet box — more padding room */
+  .bet-box { padding: 10px 10px; }
+
+  /* Amount row — ensure input doesn't shrink to zero */
+  .amount-row input { font-size: .8rem; padding: 6px 3px; }
+  .stepper { width: 30px; height: 30px; }
+
+  /* Auto cashout row — allow wrap */
+  .auto-cashout-row { flex-wrap: wrap; gap: 5px; }
+  .auto-cashout-row span { font-size: .68rem; }
+
+  /* Modal — full width on phone */
+  .modal { padding: 18px 14px; }
+  .modal h2 { font-size: .92rem; }
+
+  /* Admin stats — 2 col on mobile */
+  .admin-stat-grid { grid-template-columns: repeat(2,1fr); }
+
+  /* History bar chips slightly smaller */
+  .h-chip { font-size: .65rem; padding: 2px 7px; }
+
+  /* Toast — left side on mobile */
+  .toast-container { right: auto; left: 12px; }
+}
+
+@media (max-width: 380px) {
+  /* Tiny phones — go single column bet with compact amounts */
+  .quick-amts button { font-size: .62rem; }
+  .bet-btn { font-size: .8rem; padding: 8px 4px; }
+  .mult-display { font-size: 2rem; }
+}
+
+</style>
+
+<!-- CRITICAL: Stub globals in <head> so onclick never calls undefined -->
+<script>
+var App = {
+  openModal: function(id) {
+    console.log('[App] openModal called:', id);
+    var m = document.getElementById(id);
+    if (m) { m.classList.add('open'); console.log('[App] Modal opened:', id); }
+    else    { console.error('[App] Modal element NOT FOUND:', id); }
+  },
+  closeModal: function(id) {
+    console.log('[App] closeModal called:', id);
+    var m = document.getElementById(id);
+    if (m) m.classList.remove('open');
+  },
+  swapModal: function(a, b) {
+    console.log('[App] swapModal:', a, '->', b);
+    App.closeModal(a); App.openModal(b);
+  }
+};
+// Auth, BetPanel, Wallet, Sidebar are fully defined here in <head>
+// app.js OVERWRITES these with real implementations after loading
+// This means buttons work immediately AND get real functionality once JS loads
+var Auth = {
+  login: function() {
+    console.log('[Auth.login] Called');
+    var e=document.getElementById('li-email'), p=document.getElementById('li-pass');
+    var email=e?e.value.trim():'', pass=p?p.value:'';
+    console.log('[Auth.login] Email:', email, '| Pass length:', pass.length);
+    if(!email||!pass){ showFmAlert('login-alert','Email and password required'); console.warn('[Auth.login] Validation failed - missing fields'); return; }
+    setBtn('li-btn',true,'Logging in...');
+    console.log('[Auth.login] Sending POST /api/login...');
+    fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})})
+    .then(function(r){
+      console.log('[Auth.login] Response status:', r.status, '| Content-Type:', r.headers.get('content-type'));
+      if(!r.headers.get('content-type').includes('json')){
+        return r.text().then(function(t){ console.error('[Auth.login] Server returned HTML not JSON. First 200 chars:', t.substring(0,200)); throw new Error('Server returned HTML'); });
+      }
+      return r.json();
+    })
+    .then(function(d){
+      console.log('[Auth.login] Response JSON:', JSON.stringify(d));
+      setBtn('li-btn',false,'LOGIN');
+      if(d.ok){ console.log('[Auth.login] SUCCESS'); try{localStorage.setItem('cp_pending_email',d.user&&d.user.email?d.user.email:'');}catch(ex){} window.location.reload(); }
+      else { showFmAlert('login-alert', d.msg||'Login failed'); }
+    }).catch(function(err){ console.error('[Auth.login] CATCH ERROR:', err.message); setBtn('li-btn',false,'LOGIN'); showFmAlert('login-alert','Server error: '+err.message); });
+  },
+  register: function() {
+    console.log('[Auth.register] Called');
+    var u=gv('reg-user'),e=gv('reg-email'),p=gv('reg-pass'),c=gv('reg-country');
+    console.log('[Auth.register] Fields - user:', u, '| email:', e, '| passLen:', p.length, '| country:', c);
+    hideAlert('reg-alert');
+    if(!u||!e||!p){ showFmAlert('reg-alert','All fields are required'); console.warn('[Auth.register] Validation fail: empty fields'); return; }
+    if(u.length<3){ showFmAlert('reg-alert','Username must be at least 3 characters'); console.warn('[Auth.register] Validation fail: username too short'); return; }
+    if(p.length<8){ showFmAlert('reg-alert','Password must be at least 8 characters'); console.warn('[Auth.register] Validation fail: password too short'); return; }
+    if(e.indexOf('@')<1){ showFmAlert('reg-alert','Enter a valid email address'); console.warn('[Auth.register] Validation fail: bad email'); return; }
+    setBtn('reg-btn',true,'Creating account...');
+    console.log('[Auth.register] Sending POST /api/register...');
+    fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:e,password:p,country:c})})
+    .then(function(r){
+      console.log('[Auth.register] Response status:', r.status, '| Content-Type:', r.headers.get('content-type'));
+      if(!(r.headers.get('content-type')||'').includes('json')){
+        return r.text().then(function(t){ console.error('[Auth.register] Got HTML instead of JSON. First 200 chars:', t.substring(0,200)); throw new Error('Server returned HTML - check server logs'); });
+      }
+      return r.json();
+    })
+    .then(function(d){
+      console.log('[Auth.register] Response JSON:', JSON.stringify(d));
+      setBtn('reg-btn',false,'CREATE ACCOUNT');
+      if(d.ok){ console.log('[Auth.register] SUCCESS'); try{localStorage.setItem('cp_pending_email',d.user&&d.user.email?d.user.email:'');}catch(ex){} window.location.reload(); }
+      else { showFmAlert('reg-alert', d.msg||'Registration failed — username or email already taken'); }
+    }).catch(function(err){ console.error('[Auth.register] CATCH ERROR:', err.message); setBtn('reg-btn',false,'CREATE ACCOUNT'); showFmAlert('reg-alert','Error: '+err.message); });
+  },
+  logout: function() {
+    fetch('/api/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+    .then(function(){ window.location.reload(); }).catch(function(){ window.location.reload(); });
+  }
+};
+var BetPanel = {
+  adj:   function(s,d){ var e=document.getElementById('bet-amt-'+s); if(e) e.value=Math.max(1,(parseFloat(e.value)||0)+d); },
+  set:   function(s,v){ var e=document.getElementById('bet-amt-'+s); if(e) e.value=v; },
+  dbl:   function(s)  { var e=document.getElementById('bet-amt-'+s); if(e) e.value=(parseFloat(e.value)||1)*2; },
+  togAc: function(s)  { var c=document.getElementById('ac-'+s),i=document.getElementById('ao-'+s); if(c&&i) i.disabled=!c.checked; },
+  act: function(s) {
+    console.log('[BetPanel.act] Slot:', s, '| gameStatus:', typeof gameStatus !== 'undefined' ? gameStatus : 'NOT_LOADED');
+    App.openModal('modal-login');
+    console.log('[BetPanel.act] Note: full bet logic loads after app.js - reload if stuck');
+  }
+};
+var Wallet  = { showTab: function(t){
+  var dep=document.getElementById('w-dep'),wit=document.getElementById('w-wit');
+  if(dep) dep.style.display=t==='dep'?'block':'none';
+  if(wit) wit.style.display=t==='wit'?'block':'none';
+}};
+var Sidebar = { show: function(t,btn){
+  document.querySelectorAll('.sidebar-tab').forEach(function(b){b.classList.remove('active');});
+  if(btn) btn.classList.add('active');
+}};
+function gv(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
+function setBtn(id,dis,txt){ var b=document.getElementById(id); if(b){b.disabled=dis;b.textContent=txt;} else { console.warn('[setBtn] Button not found:', id); } }
+function showFmAlert(id,msg,type){ var e=document.getElementById(id); if(e){e.textContent=msg;e.className='form-alert '+(type||'error');e.style.display='block';} else { console.warn('[showFmAlert] Alert element not found:', id); } }
+function hideAlert(id){ var e=document.getElementById(id); if(e) e.style.display='none'; }
+// ── GLOBAL ERROR CATCHER ─────────────────────────────────────
+window.onerror = function(msg, src, line, col, err) {
+  console.error('[GLOBAL ERROR]', msg, '| File:', src, '| Line:', line, '| Col:', col);
+  return false;
+};
+window.onunhandledrejection = function(e) {
+  console.error('[UNHANDLED PROMISE]', e.reason);
+};
+console.log('[Crown Pesa] Head script loaded OK — App, Auth, BetPanel ready');
+function toggleMute(){
+  if(window.Sound){
+    var m=window.Sound.toggleMute();
+    var btn=document.getElementById('mute-btn');
+    if(btn) btn.innerHTML = m ? '&#128263;' : '&#128266;';
+  }
+}
+function toggleSound() {
+  if (!window.Sound) return;
+  var muted = Sound.toggleMute();
+  var btn   = document.getElementById('mute-btn');
+  if (btn) btn.innerHTML = muted ? '&#128263;' : '&#128266;';
+  if (btn) btn.title = muted ? 'Unmute sounds' : 'Mute sounds';
+}
+function switchTab(btn,tab){
+  document.querySelectorAll('.bet-tab').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  var bp = document.querySelector('.bet-panel');
+  var ab = document.getElementById('auto-bet-panel');
+  if (bp) bp.style.display = tab==='auto' ? 'none' : 'block';
+  if (ab) ab.style.display = tab==='auto' ? 'block' : 'none';
+}
+document.addEventListener('click',function(e){
+  if(e.target&&e.target.classList&&e.target.classList.contains('modal-backdrop'))
+    e.target.classList.remove('open');
+});
+</script>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="brand">
+    <div class="brand-icon">&#9992;</div>
+    <span class="brand-name">Crown Pesa</span>
+  </div>
+  <div class="nav-right">
+    <div id="nav-guest" class="nav-auth">
+      <button class="btn btn-outline" onclick="App.openModal('modal-login')">LOGIN</button>
+      <button class="btn btn-red"     onclick="App.openModal('modal-register')">REGISTER</button>
+    </div>
+    <button id="mute-btn" onclick="toggleMute()" title="Mute/unmute sounds" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:0 8px;flex-shrink:0">&#128266;</button>
+    <div id="nav-user" class="nav-auth" style="display:none">
+      <span class="balance-chip"><span id="nav-sym">KSh</span> <span id="nav-bal">0.00</span></span>
+      <button class="btn btn-green btn-sm" onclick="App.openModal('modal-wallet')">&#128179; Wallet</button>
+      <button class="btn btn-outline btn-sm" id="btn-logout" onclick="Auth.logout()">Logout</button>
+      <button class="btn btn-admin btn-sm" id="btn-admin" style="display:none" onclick="App.openModal('modal-admin');setTimeout(function(){if(window.loadAdminPanel)window.loadAdminPanel();},100)">Admin</button>
+    </div>
+  </div>
+</nav>
+
+<div class="history-wrap">
+  <div class="history-bar" id="history-bar"></div>
+  <button class="history-toggle" id="history-toggle" onclick="toggleHistory()" title="Expand round history">&#9660;</button>
+</div>
+<div class="history-expanded" id="history-expanded" style="display:none"></div>
+
+<div class="mode-bar fun" id="mode-bar">
+  <span id="mode-dot" style="color:#ff8800">&#9679;</span>
+  <span id="mode-text">FUN MODE &#8212; Register to play</span>
+  <span id="mode-round" style="font-size:.6rem;color:rgba(255,255,255,.25);margin-left:8px"></span>
+</div>
+
+<div class="main-layout">
+  <div class="game-col">
+    <div class="canvas-wrap" id="canvas-wrap">
+      <canvas id="game-canvas"></canvas>
+      <div class="canvas-overlay">
+        <div class="mult-display hidden" id="mult-display">1.00x</div>
+        <div class="earn-display hidden" id="earn-display"></div>
+        <div class="crash-display hidden" id="crash-display">
+          <span class="crash-emoji">&#128165;</span>
+          <span class="crash-value" id="crash-value">2.50x</span>
+          <span class="crash-label">CRASHED</span>
+        </div>
+      </div>
+      <svg class="plane" id="plane" viewBox="0 0 200 72" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="fuseGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stop-color="#e8e8f0"/>
+            <stop offset="40%"  stop-color="#c8c8d8"/>
+            <stop offset="100%" stop-color="#9090a8"/>
+          </linearGradient>
+          <linearGradient id="wingGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stop-color="#d0d0e0"/>
+            <stop offset="100%" stop-color="#8888a0"/>
+          </linearGradient>
+          <linearGradient id="engineGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stop-color="#888898"/>
+            <stop offset="100%" stop-color="#444455"/>
+          </linearGradient>
+        </defs>
+
+        <!-- ── MAIN FUSELAGE ── smooth tube tapering to nose -->
+        <path d="M12,36 Q14,29 22,28 L155,26 Q168,26 175,28 Q185,30 192,35 Q185,40 175,42 L22,42 Q14,42 12,36Z"
+              fill="url(#fuseGrad)" stroke="#7070a0" stroke-width="0.6"/>
+
+        <!-- ── NOSE CONE ── pointed commercial nose -->
+        <path d="M175,28 Q185,30 196,35 Q185,40 175,42 Q182,36 175,28Z"
+              fill="#d0d0e0" stroke="#8080b0" stroke-width="0.5"/>
+
+        <!-- ── COCKPIT WINDOWS ── dark tinted windshield -->
+        <path d="M162,29 Q168,28 173,30 Q171,34 168,35 Q163,35 162,33 Z"
+              fill="#2a3a5a" opacity=".85"/>
+        <path d="M154,30 Q160,28 162,29 L162,33 Q158,35 154,34 Z"
+              fill="#2a3a5a" opacity=".75"/>
+
+        <!-- ── CROWN PESA LIVERY LINE ── red cheatline along fuselage -->
+        <path d="M22,28.5 L172,27.5" stroke="#cc2222" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M22,29.5 L155,28.8" stroke="#ff4444" stroke-width="1" stroke-linecap="round" opacity=".5"/>
+
+        <!-- ── PASSENGER WINDOWS ── row of oval windows -->
+        <ellipse cx="60"  cy="30" rx="3.5" ry="2.5" fill="#b8ccee" opacity=".8"/>
+        <ellipse cx="74"  cy="30" rx="3.5" ry="2.5" fill="#b8ccee" opacity=".8"/>
+        <ellipse cx="88"  cy="30" rx="3.5" ry="2.5" fill="#b8ccee" opacity=".8"/>
+        <ellipse cx="102" cy="30" rx="3.5" ry="2.5" fill="#b8ccee" opacity=".8"/>
+        <ellipse cx="116" cy="30" rx="3.5" ry="2.5" fill="#b8ccee" opacity=".8"/>
+        <ellipse cx="130" cy="30" rx="3.5" ry="2.5" fill="#b8ccee" opacity=".8"/>
+        <ellipse cx="144" cy="30" rx="3.5" ry="2.5" fill="#b8ccee" opacity=".8"/>
+
+        <!-- ── MAIN SWEPT WING ── beneath fuselage, swept back -->
+        <path d="M75,37 L48,62 L92,44 L108,37Z"
+              fill="url(#wingGrad)" stroke="#6868a0" stroke-width="0.6"/>
+        <!-- Wing leading-edge highlight -->
+        <path d="M75,37 L48,62" stroke="#c0c0d8" stroke-width="0.8" opacity=".6"/>
+        <!-- Winglet -->
+        <path d="M48,62 L44,58 L50,55 L52,61Z" fill="#a0a0c0"/>
+
+        <!-- ── HORIZONTAL TAIL ── -->
+        <path d="M18,36 L6,47 L24,40 L28,36Z"
+              fill="url(#wingGrad)" stroke="#6868a0" stroke-width="0.5"/>
+        <path d="M6,47 L4,44 L8,43 L8,46Z" fill="#9090b0"/>
+
+        <!-- ── VERTICAL TAIL FIN ── -->
+        <path d="M22,28 L16,10 L30,10 L30,28Z"
+              fill="url(#fuseGrad)" stroke="#7070a0" stroke-width="0.5"/>
+        <!-- Tail fin red stripe -->
+        <path d="M16,10 L30,10 L30,18 L16,18Z" fill="#cc2222" opacity=".9"/>
+
+        <!-- ── ENGINE NACELLE 1 (main, under wing) ── -->
+        <ellipse cx="70" cy="52" rx="14" ry="5.5" fill="url(#engineGrad)" stroke="#555568" stroke-width="0.6"/>
+        <!-- Engine intake rim -->
+        <ellipse cx="82" cy="52" rx="3" ry="5" fill="#333344" stroke="#555568" stroke-width="0.5"/>
+        <!-- Engine pylon -->
+        <rect x="72" y="43" width="5" height="10" rx="1" fill="#888898" stroke="#666678" stroke-width="0.4"/>
+
+        <!-- ── ENGINE NACELLE 2 (inboard, under wing) ── -->
+        <ellipse cx="87" cy="46" rx="11" ry="4.5" fill="url(#engineGrad)" stroke="#555568" stroke-width="0.5"/>
+        <ellipse cx="97" cy="46" rx="2.5" ry="4" fill="#333344" stroke="#555568" stroke-width="0.4"/>
+        <rect x="89" y="39" width="4" height="8" rx="1" fill="#888898" stroke="#666678" stroke-width="0.4"/>
+
+        <!-- ── ENGINE EXHAUST GLOW ── animated flame behind engines -->
+        <ellipse cx="57" cy="52" rx="6" ry="3" fill="#ff6600" opacity=".95"/>
+        <ellipse cx="55" cy="52" rx="4" ry="2" fill="#ffaa00" opacity=".9"/>
+        <ellipse cx="53" cy="52" rx="2.5" ry="1.5" fill="#ffee88" opacity=".85"/>
+        <ellipse cx="76" cy="46" rx="4.5" ry="2.2" fill="#ff6600" opacity=".9"/>
+        <ellipse cx="74" cy="46" rx="3"   ry="1.5" fill="#ffaa00" opacity=".85"/>
+
+        <!-- ── WING LIGHTS ── red on left wingtip -->
+        <circle cx="48" cy="62" r="2" fill="#ff2222" opacity=".9"/>
+
+        <!-- ── FUSELAGE BELLY LINE ── -->
+        <path d="M22,41 L160,41" stroke="#5858a0" stroke-width="0.5" opacity=".4"/>
+      </svg>
+      <div class="round-label" id="round-label">ROUND #&#8212;</div>
+    </div>
+
+    <div class="bet-tabs">
+      <button class="bet-tab active" onclick="switchTab(this,'stake')">STAKE SELECTOR</button>
+      <button class="bet-tab"        onclick="switchTab(this,'auto')">AUTO BET</button>
+    </div>
+
+    <!-- AUTO BET PANEL -->
+    <div id="auto-bet-panel" style="display:none;padding:10px">
+      <div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:8px;padding:14px">
+        <div style="font-size:.8rem;color:var(--gold);margin-bottom:12px;font-family:var(--fnum);font-weight:700">AUTO BET SETTINGS</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <div>
+            <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px">Bet amount</div>
+            <input type="number" id="ab-amount" value="50" min="1" style="width:100%;background:#111;border:1px solid var(--bdr);color:#fff;padding:6px 8px;border-radius:5px;font-size:.85rem">
+          </div>
+          <div>
+            <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px">Rounds</div>
+            <input type="number" id="ab-rounds" value="10" min="1" max="100" style="width:100%;background:#111;border:1px solid var(--bdr);color:#fff;padding:6px 8px;border-radius:5px;font-size:.85rem">
+          </div>
+          <div>
+            <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px">Cash out at</div>
+            <input type="number" id="ab-cashout" value="2.00" min="1.01" step="0.01" style="width:100%;background:#111;border:1px solid var(--bdr);color:#fff;padding:6px 8px;border-radius:5px;font-size:.85rem">
+          </div>
+          <div>
+            <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px">Stop if loss &gt;</div>
+            <input type="number" id="ab-stop-loss" value="500" min="0" style="width:100%;background:#111;border:1px solid var(--bdr);color:#fff;padding:6px 8px;border-radius:5px;font-size:.85rem">
+          </div>
+        </div>
+        <div id="ab-status" style="font-size:.72rem;color:var(--muted);margin-bottom:8px;min-height:16px;text-align:center"></div>
+        <div style="display:flex;gap:8px">
+          <button id="ab-start-btn" class="bet-btn idle" style="flex:1;font-size:.82rem" onclick="AutoBet.start()">START AUTO BET</button>
+          <button class="bet-btn loading" style="flex:0 0 70px;font-size:.78rem" onclick="AutoBet.stop()">STOP</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="bet-panel">
+      <div class="two-bets">
+        <div class="bet-box">
+          <div class="bet-box-header">BET 1</div>
+          <div class="amount-row">
+            <button class="stepper" onclick="BetPanel.adj(1,-10)">&#8722;</button>
+            <input type="number" id="bet-amt-1" value="20" min="1">
+            <button class="stepper" onclick="BetPanel.adj(1,10)">+</button>
+            <button class="x2-btn" onclick="BetPanel.dbl(1)">&#215;2</button>
+          </div>
+          <div class="quick-amts">
+            <button onclick="BetPanel.set(1,50)">50</button>
+            <button onclick="BetPanel.set(1,100)">100</button>
+            <button onclick="BetPanel.set(1,200)">200</button>
+            <button onclick="BetPanel.set(1,500)">500</button>
+          </div>
+          <div class="auto-cashout-row">
+            <label class="toggle"><input type="checkbox" id="ac-1" onchange="BetPanel.togAc(1)"><span class="toggle-slider"></span></label>
+            <span>AUTO CASH OUT</span>
+            <input type="number" id="ao-1" class="ac-input" value="2.00" step="0.01" min="1.01" disabled>
+          </div>
+          <button class="bet-btn idle" id="bet-btn-1" onclick="BetPanel.act(1)">BET</button>
+        </div>
+        <div class="bet-box">
+          <div class="bet-box-header">BET 2</div>
+          <div class="amount-row">
+            <button class="stepper" onclick="BetPanel.adj(2,-10)">&#8722;</button>
+            <input type="number" id="bet-amt-2" value="20" min="1">
+            <button class="stepper" onclick="BetPanel.adj(2,10)">+</button>
+            <button class="x2-btn" onclick="BetPanel.dbl(2)">&#215;2</button>
+          </div>
+          <div class="quick-amts">
+            <button onclick="BetPanel.set(2,50)">50</button>
+            <button onclick="BetPanel.set(2,100)">100</button>
+            <button onclick="BetPanel.set(2,200)">200</button>
+            <button onclick="BetPanel.set(2,500)">500</button>
+          </div>
+          <div class="auto-cashout-row">
+            <label class="toggle"><input type="checkbox" id="ac-2" onchange="BetPanel.togAc(2)"><span class="toggle-slider"></span></label>
+            <span>AUTO CASH OUT</span>
+            <input type="number" id="ao-2" class="ac-input" value="2.00" step="0.01" min="1.01" disabled>
+          </div>
+          <button class="bet-btn idle" id="bet-btn-2" onclick="BetPanel.act(2)">BET</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div id="sidebar-bal" style="display:none;padding:6px 12px;background:var(--bg3);border-bottom:1px solid var(--bdr);font-size:.72rem;color:var(--muted)">
+      Balance: <span id="sb-sym">KSh</span> <strong id="sb-bal" style="color:var(--gold)">0.00</strong>
+    </div>
+    <div class="sidebar-tabs">
+      <button class="sidebar-tab active" onclick="Sidebar.show('live',this)">LIVE</button>
+      <button class="sidebar-tab"        onclick="Sidebar.show('my',this)">MY BETS</button>
+      <button class="sidebar-tab"        onclick="Sidebar.show('leaders',this)">TOP</button>
+      <button class="sidebar-tab"        onclick="Sidebar.show('txns',this)">HISTORY</button>
+    </div>
+    <div class="sidebar-body" id="sidebar-body"><p class="empty-msg">Waiting for round...</p></div>
+  </div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<!-- LOGIN MODAL -->
+<div class="modal-backdrop" id="modal-login">
+  <div class="modal">
+    <button class="modal-close" onclick="App.closeModal('modal-login')">&#10005;</button>
+    <h2>LOGIN</h2>
+    <div class="form-alert" id="login-alert" style="display:none"></div>
+    <div class="form-group"><label>Email</label><input type="email" id="li-email" placeholder="your@email.com" autocomplete="email"></div>
+    <div class="form-group"><label>Password</label><input type="password" id="li-pass" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="current-password"></div>
+    <button class="form-submit" id="li-btn" onclick="Auth.login()">LOGIN</button>
+    <p class="form-switch">No account? <a href="#" onclick="App.swapModal('modal-login','modal-register');return false;">Register</a></p>
+  </div>
+</div>
+
+<!-- REGISTER MODAL -->
+<div class="modal-backdrop" id="modal-register">
+  <div class="modal">
+    <button class="modal-close" onclick="App.closeModal('modal-register')">&#10005;</button>
+    <h2>CREATE ACCOUNT</h2>
+    <div class="form-alert" id="reg-alert" style="display:none"></div>
+    <div class="form-group"><label>Username</label><input type="text" id="reg-user" placeholder="e.g. JohnKipngetich" autocomplete="off"></div>
+    <div class="form-group"><label>Email</label><input type="email" id="reg-email" placeholder="your@email.com" autocomplete="email"></div>
+    <div class="form-group"><label>Password <small style="color:#888">(min 8 chars)</small></label><input type="password" id="reg-pass" placeholder="min 8 characters" autocomplete="new-password"></div>
+    <div class="form-group"><label>Country</label>
+      <select id="reg-country">
+        <option value="KE">&#127472;&#127466; Kenya (KES)</option>
+        <option value="NG">&#127475;&#127468; Nigeria (NGN)</option>
+        <option value="GH">&#127468;&#127469; Ghana (GHS)</option>
+        <option value="ZA">&#127487;&#127462; South Africa (ZAR)</option>
+        <option value="UG">&#127482;&#127468; Uganda (UGX)</option>
+        <option value="TZ">&#127481;&#127487; Tanzania (TZS)</option>
+        <option value="US">&#127482;&#127480; United States (USD)</option>
+        <option value="GB">&#127468;&#127463; United Kingdom (GBP)</option>
+      </select>
+    </div>
+    <button class="form-submit" id="reg-btn" onclick="Auth.register()">CREATE ACCOUNT</button>
+    <p class="form-switch">Have account? <a href="#" onclick="App.swapModal('modal-register','modal-login');return false;">Login</a></p>
+  </div>
+</div>
+
+<!-- WALLET MODAL -->
+<div class="modal-backdrop" id="modal-wallet">
+  <div class="modal">
+    <button class="modal-close" onclick="App.closeModal('modal-wallet')">&#10005;</button>
+    <h2>&#128179; WALLET</h2>
+    <div class="wallet-balance">
+      <div class="wallet-amount"><span id="w-sym">KSh</span> <span id="w-bal">0.00</span></div>
+      <div class="wallet-label">Available Balance</div>
+    </div>
+    <div class="wallet-actions">
+      <button class="btn btn-green" onclick="Wallet.showTab('dep')">+ DEPOSIT</button>
+      <button class="btn btn-outline" onclick="Wallet.showTab('wit')">- WITHDRAW</button>
+    </div>
+    <div id="w-dep" style="display:none;margin-top:16px">
+      <div class="form-alert" id="dep-alert" style="display:none"></div>
+      <div class="form-group"><label>Amount</label><input type="number" id="dep-amt" placeholder="Enter amount"></div>
+      <div class="quick-amts" style="margin-bottom:14px">
+        <button onclick="document.getElementById('dep-amt').value=500">500</button>
+        <button onclick="document.getElementById('dep-amt').value=1000">1,000</button>
+        <button onclick="document.getElementById('dep-amt').value=2000">2,000</button>
+        <button onclick="document.getElementById('dep-amt').value=5000">5,000</button>
+      </div>
+      <button class="form-submit" id="dep-btn" onclick="Wallet.deposit()">PAY WITH PAYSTACK</button>
+      <p id="dep-verify-hint" style="display:none;margin-top:10px;font-size:12px;color:#888;text-align:center">
+        Returned from Paystack? 
+        <a href="#" onclick="Wallet.verifyPending();return false;" style="color:var(--green)">Verify payment</a>
+      </p>
+    </div>
+    <div id="w-wit" style="display:none;margin-top:16px">
+      <div class="form-alert" id="wit-alert" style="display:none"></div>
+      <div class="form-group"><label>Amount</label><input type="number" id="wit-amt"></div>
+      <div class="form-group"><label>Bank / Mobile Money</label><select id="wit-bank"></select></div>
+      <div class="form-group"><label>Account / Phone</label><input type="text" id="wit-acct" placeholder="e.g. 0712345678"></div>
+      <div class="form-group"><label>Account Name</label><input type="text" id="wit-name" placeholder="Full name"></div>
+      <button class="form-submit" id="wit-btn" onclick="Wallet.withdraw()">SUBMIT WITHDRAWAL</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN MODAL -->
+<div class="modal-backdrop" id="modal-admin">
+  <div class="modal modal-wide">
+    <button class="modal-close" onclick="App.closeModal('modal-admin')">&#10005;</button>
+    <h2>&#9881; Admin Panel</h2>
+    <div id="admin-content"><p style="color:#666;padding:12px">Loading...</p></div>
+  </div>
+</div>
+
+<!-- User Action Modal -->
+<div class="modal-backdrop" id="modal-user-action">
+  <div class="modal" style="max-width:420px">
+    <button class="modal-close" onclick="App.closeModal('modal-user-action')">&#10005;</button>
+    <h2 id="ua-title" style="font-size:1rem;margin-bottom:4px">Adjust Balance</h2>
+    <p id="ua-current-bal" style="font-size:.78rem;color:var(--muted);margin-bottom:14px"></p>
+    <div class="form-alert" id="ua-alert" style="display:none;margin-bottom:10px"></div>
+    <div class="form-group">
+      <label>Amount <small style="color:#888">(positive = add, negative = deduct)</small></label>
+      <input type="number" id="ua-amount" step="0.01" style="width:100%">
+    </div>
+    <div class="form-group">
+      <label>Reason <small style="color:#888">(required — saved to audit log)</small></label>
+      <input type="text" id="ua-reason" placeholder="e.g. Bonus reward, Chargeback, etc." style="width:100%">
+    </div>
+    <button class="form-submit" id="ua-submit-btn">Apply</button>
+  </div>
+</div>
+
+<!-- socket.io from server -->
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://js.paystack.co/v1/inline.js"></script>
+
+<!-- CANVAS (inlined) -->
+<script>
+/**
+ * canvas.js — Renderer only. No game logic. No network calls.
+ * Exposed as window.Canvas so app.js can call it safely.
+ */
+// ── SOUND ENGINE ────────────────────────────────────────────
+
+window.Canvas = (function() {
+
+  var cv, ctx, wrap, plane, multEl, crashEl, crashV;
+  var state = 'idle', startedAt = null, waitUntil = null;
+  var points = [], AF = null, CD = null;
+
+  function init() {
+    cv      = document.getElementById('game-canvas');
+    ctx     = cv ? cv.getContext('2d') : null;
+    wrap    = document.getElementById('canvas-wrap');
+    plane   = document.getElementById('plane');
+    multEl  = document.getElementById('mult-display');
+    crashEl = document.getElementById('crash-display');
+    crashV  = document.getElementById('crash-value');
+    if (!cv || !ctx) return;
+    resize();
+    window.addEventListener('resize', function() { resize(); if (state !== 'flying') drawBG(); });
+    drawBG();
+  }
+
+  function resize() {
+    if (!cv || !wrap) return;
+    cv.width  = wrap.clientWidth  || 700;
+    cv.height = wrap.clientHeight || 320;
+  }
+
+  function calcMult(ms) { return Math.max(1, Math.exp(0.00006 * ms)); }
+  function multToY(m) {
+    var H = cv.height;
+    // Dynamic log base: expands scale as multiplier grows so 10,000x still fits
+    // At 1x=bottom, uses natural log scaled to current max seen
+    var maxSeen = Math.max(10, currentMaxMult || 10);
+    var logBase = Math.max(Math.log(maxSeen) * 1.1, Math.log(10));
+    return Math.max(8, H * 0.93 - (Math.log(m) / logBase) * H * 0.87);
+  }
+  function elToX(sec) {
+    return Math.min(10 + (sec / 60) * (cv.width - 20), cv.width - 10);
+  }
+  var currentMaxMult = 1;
+
+  function drawBG() {
+    if (!ctx) return;
+    var W=cv.width, H=cv.height;
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#070710'; ctx.fillRect(0,0,W,H);
+    var ox=W*0.07, oy=H*1.1;
+    for (var i=0;i<22;i++) {
+      var a=-0.1+(i/21)*0.9;
+      ctx.beginPath(); ctx.moveTo(ox,oy);
+      ctx.lineTo(ox+Math.cos(a)*W*3, oy-Math.sin(a)*H*3);
+      ctx.strokeStyle='rgba(160,15,15,'+(i%2===0?0.025:0.012)+')';
+      ctx.lineWidth=20; ctx.stroke();
+    }
+    var g=ctx.createRadialGradient(W/2,H/2,H*0.05,W/2,H/2,H);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.65)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  }
+
+  function drawCountdown() {
+    if (!ctx) return;
+    drawBG();
+    if (!waitUntil) return;
+    var W=cv.width, H=cv.height;
+    var rem=Math.max(0,(waitUntil-Date.now())/1000);
+    var frac=rem/8;
+    var cx=W/2, cy=H/2, r=Math.min(W,H)*0.14;
+
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,255,255,0.07)'; ctx.lineWidth=7; ctx.stroke();
+
+    if (frac>0) {
+      ctx.save(); ctx.beginPath();
+      ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+Math.PI*2*frac);
+      ctx.strokeStyle=rem<=2?'#ff5533':'#cc0000';
+      ctx.lineWidth=7; ctx.lineCap='round';
+      ctx.shadowColor='#ff2200'; ctx.shadowBlur=14;
+      ctx.stroke(); ctx.restore();
+    }
+
+    var isGo=rem<=0;
+    ctx.save();
+    ctx.font='900 '+Math.round(r*(isGo?0.58:0.82))+'px Orbitron,monospace';
+    ctx.fillStyle=isGo?'#00ff88':(rem<=2?'#ff6644':'#fff');
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.shadowColor=isGo?'#00ff88':'transparent'; ctx.shadowBlur=isGo?28:0;
+    ctx.fillText(isGo?'GO!':Math.ceil(rem),cx,cy);
+    ctx.restore();
+
+    if (!isGo) {
+      ctx.save(); ctx.font='11px Orbitron,monospace';
+      ctx.fillStyle='rgba(255,255,255,0.25)';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('STARTING IN',cx,cy-r-17); ctx.restore();
+    }
+  }
+
+  function drawCurve() {
+    if (!ctx) return;
+    if (points.length<2) { drawBG(); return; }
+    drawBG();
+    var W=cv.width, H=cv.height;
+    var tip=points[points.length-1];
+
+    var fill=ctx.createLinearGradient(0,H*0.2,0,H);
+    fill.addColorStop(0,'rgba(180,0,0,0.42)');
+    fill.addColorStop(0.55,'rgba(120,0,0,0.18)');
+    fill.addColorStop(1,'rgba(50,0,0,0.04)');
+    ctx.fillStyle=fill;
+    ctx.beginPath(); ctx.moveTo(points[0].x,H); ctx.lineTo(points[0].x,points[0].y);
+    for (var i=1;i<points.length;i++) ctx.lineTo(points[i].x,points[i].y);
+    ctx.lineTo(tip.x,H); ctx.closePath(); ctx.fill();
+
+    // Draw multiplier labels on Y axis
+    if (currentMaxMult > 1.5) {
+      var milestones = [2,5,10,25,50,100,200,500,1000,5000,10000].filter(function(v){ return v <= currentMaxMult*1.2; });
+      ctx.save();
+      ctx.font = '10px Orbitron,monospace';
+      ctx.textAlign = 'left';
+      milestones.forEach(function(m) {
+        var yy = multToY(m);
+        if (yy > 15 && yy < cv.height-5) {
+          ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=0.5;
+          ctx.setLineDash([4,6]);
+          ctx.beginPath(); ctx.moveTo(32,yy); ctx.lineTo(cv.width,yy); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle='rgba(255,255,255,0.2)';
+          ctx.fillText(m>=1000?(m/1000).toFixed(0)+'k':m+'x', 4, yy+3);
+        }
+      });
+      ctx.restore();
+    }
+    // Smooth bezier curve using cardinal spline
+    ctx.save();
+    ctx.shadowColor='#ff1100'; ctx.shadowBlur=16;
+    ctx.strokeStyle='#ff2222'; ctx.lineWidth=3.5;
+    ctx.lineJoin='round'; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(points[0].x,points[0].y);
+    // Cardinal spline for smooth curve
+    var tension = 0.4;
+    for (var j=1;j<points.length;j++) {
+      var p0 = points[Math.max(0,j-2)];
+      var p1 = points[j-1];
+      var p2 = points[j];
+      var p3 = points[Math.min(points.length-1,j+1)];
+      var cp1x = p1.x + (p2.x-p0.x)*tension/2;
+      var cp1y = p1.y + (p2.y-p0.y)*tension/2;
+      var cp2x = p2.x - (p3.x-p1.x)*tension/2;
+      var cp2y = p2.y - (p3.y-p1.y)*tension/2;
+      ctx.bezierCurveTo(cp1x,cp1y,cp2x,cp2y,p2.x,p2.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    if (plane) {
+      // Use more history points for a smoother angle calculation
+      var lookback = Math.max(0, points.length - 14);
+      var tail     = points[lookback];
+      var ang      = Math.atan2(tail.y - tip.y, tip.x - tail.x);
+      var deg      = -ang * 180 / Math.PI;
+
+      // New SVG: viewBox 0 0 200 72, nose tip at x=196 y=35
+      // Scale to ~130px wide so it's clearly visible but not oversized
+      var scale = 0.68;
+      var svgW  = 200 * scale;   // 136px
+      var svgH  = 72  * scale;   // 49px
+      var noseX = 196 * scale;   // 133px from SVG left edge = nose in CSS space
+      var noseY = 35  * scale;   // 23.8px from SVG top = nose centerline
+
+      plane.style.width           = svgW + 'px';
+      plane.style.height          = svgH + 'px';
+      plane.style.display         = 'block';
+      // Position so nose lands exactly on curve tip
+      // Offset slightly down (+4px) so fuselage sits on the curve, not above it
+      plane.style.left            = (tip.x - noseX) + 'px';
+      plane.style.top             = (tip.y - noseY + 4) + 'px';
+      plane.style.transformOrigin = noseX + 'px ' + noseY + 'px';
+      plane.style.transform       = 'rotate(' + deg + 'deg)';
+    }
+  }
+
+  function stopAll() {
+    if (AF) { cancelAnimationFrame(AF); AF=null; }
+    if (CD) { cancelAnimationFrame(CD); CD=null; }
+  }
+
+  function cdLoop() {
+    drawCountdown();
+    if (waitUntil&&(waitUntil-Date.now())>-900) CD=requestAnimationFrame(cdLoop);
+    else CD=null;
+  }
+
+  var earnEl = null; // cached reference to earn-display
+
+  function flyLoop() {
+    if (!startedAt) { AF=null; return; }
+    var ms   = Date.now() - startedAt;
+    var mult = calcMult(ms);
+    if (mult > currentMaxMult) currentMaxMult = mult;
+    points.push({x:elToX(ms/1000), y:multToY(mult)});
+    if (points.length > 1200) points.shift();
+    drawCurve();
+
+    if (multEl) {
+      var display = mult < 100 ? mult.toFixed(2) : Math.floor(mult).toLocaleString();
+      multEl.textContent = display + 'x';
+      var cls = mult < 2 ? '' : mult < 5 ? ' green' : mult < 10 ? ' gold' : mult < 100 ? ' orange' : ' mega';
+      multEl.className = 'mult-display' + cls;
+    }
+
+    // ── EARNINGS DISPLAY ────────────────────────────────────
+    if (!earnEl) earnEl = document.getElementById('earn-display');
+    if (earnEl) {
+      // Get active bet amounts from app.js via shared window object
+      var amounts = window._betAmounts || { 1: 0, 2: 0 };
+      var states  = window._betState  || { 1: null, 2: null };
+      var sym     = (window._currencySym) || '';
+      var earning = 0;
+      [1, 2].forEach(function(s) {
+        if (states[s] === 'placed' && amounts[s] > 0) {
+          earning += amounts[s] * mult;
+        }
+      });
+      if (earning > 0) {
+        var cls = mult < 2 ? '' : mult < 5 ? ' green' : mult < 10 ? ' gold' : mult < 100 ? ' orange' : ' mega';
+        earnEl.className  = 'earn-display' + cls;
+        earnEl.textContent = sym + (earning < 10000 ? earning.toFixed(2) : Math.floor(earning).toLocaleString());
+        earnEl.classList.remove('hidden');
+      } else {
+        earnEl.classList.add('hidden');
+      }
+    }
+
+    if (window.Sound) window.Sound.updateEngine(mult);
+    AF = requestAnimationFrame(flyLoop);
+  }
+
+  function showWaiting(wu) {
+    stopAll(); state='waiting'; waitUntil=wu; points=[]; startedAt=null; currentMaxMult=1;
+    if (window.Sound) { window.Sound.stopEngine(); window.Sound.playWaiting(); }
+    if (plane) plane.style.display='none';
+    if (multEl) multEl.classList.add('hidden');
+    if (crashEl) crashEl.classList.add('hidden');
+    if (earnEl)  earnEl.classList.add('hidden');
+    CD=requestAnimationFrame(cdLoop);
+  }
+
+  function showFlying(sa) {
+    stopAll(); state='flying'; startedAt=sa; points=[];
+    if (window.Sound) window.Sound.startEngine();
+    var elapsed=Date.now()-sa;
+    for (var ms=0;ms<elapsed;ms+=80) {
+      points.push({x:elToX(ms/1000),y:multToY(calcMult(ms))});
+    }
+    if (crashEl) crashEl.classList.add('hidden');
+    if (multEl) { multEl.classList.remove('hidden'); multEl.textContent='1.00x'; multEl.className='mult-display'; }
+    earnEl = document.getElementById('earn-display'); // refresh reference
+    AF=requestAnimationFrame(flyLoop);
+  }
+
+  function showCrash(cp) {
+    stopAll(); state='crashed';
+    if (window.Sound) window.Sound.playCrash();
+    if (plane) plane.style.display='none';
+    if (multEl) multEl.classList.add('hidden');
+    var cpNum = parseFloat(cp);
+    if (crashV) crashV.textContent = (cpNum < 100 ? cpNum.toFixed(2) : Math.floor(cpNum).toLocaleString()) + 'x';
+    if (crashEl) crashEl.classList.remove('hidden');
+    drawCurve();
+    if (wrap) { wrap.classList.add('flash'); setTimeout(function(){wrap.classList.remove('flash');},400); }
+  }
+
+  function showIdle() {
+    stopAll(); state='idle'; points=[];
+    if (plane) plane.style.display='none';
+    if (multEl) multEl.classList.add('hidden');
+    if (crashEl) crashEl.classList.add('hidden');
+    drawBG();
+  }
+
+  function getCurrentMult() {
+    if (!startedAt||state!=='flying') return null;
+    return calcMult(Date.now()-startedAt);
+  }
+
+  // Run init when DOM is ready
+  if (document.readyState==='loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  return { showWaiting: showWaiting, showFlying: showFlying,
+           showCrash: showCrash, showIdle: showIdle, getCurrentMult: getCurrentMult };
+
+}());
+
+// ── SOUND ENGINE (Web Audio API — no files needed) ───────────────────────
+window.Sound = (function () {
+  'use strict';
+
+  var _ctx    = null;
+  var _muted  = false;
+  var _eng    = {};          // holds all running engine nodes
+  var _flying = false;
+
+  /* ── AudioContext (lazy, resumed on first gesture) ───────── */
+  function ctx() {
+    if (!_ctx) {
+      try { _ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e) { return null; }
+    }
+    if (_ctx.state === 'suspended') _ctx.resume();
+    return _ctx;
+  }
+  document.addEventListener('click', function () { ctx(); }, { passive: true });
+  document.addEventListener('touchend', function () { ctx(); }, { passive: true });
+
+  /* ── Master limiter to prevent clipping ─────────────────── */
+  function masterChain(c) {
+    var comp = c.createDynamicsCompressor();
+    comp.threshold.value = -6;
+    comp.knee.value      = 10;
+    comp.ratio.value     = 4;
+    comp.attack.value    = 0.003;
+    comp.release.value   = 0.15;
+    comp.connect(c.destination);
+    return comp;
+  }
+
+  /* ── White noise buffer (reusable) ──────────────────────── */
+  function makeNoiseBuf(c, secs) {
+    var len = Math.ceil(c.sampleRate * secs);
+    var buf = c.createBuffer(1, len, c.sampleRate);
+    var d   = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    return buf;
+  }
+
+  /* ── Play a shaped noise burst ──────────────────────────── */
+  function playNoise(c, dest, startT, dur, vol, lpFreq, hpFreq, shape) {
+    var buf  = makeNoiseBuf(c, dur + 0.1);
+    var src  = c.createBufferSource();
+    src.buffer = buf;
+    var lp   = c.createBiquadFilter();
+    lp.type  = 'lowpass';  lp.frequency.value = lpFreq  || 800;
+    var hp   = c.createBiquadFilter();
+    hp.type  = 'highpass'; hp.frequency.value = hpFreq || 40;
+    var gain = c.createGain();
+    gain.gain.setValueAtTime(0.0001, startT);
+    if (shape === 'pop') {
+      gain.gain.linearRampToValueAtTime(vol,   startT + 0.004);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startT + dur);
+    } else {
+      gain.gain.linearRampToValueAtTime(vol,   startT + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startT + dur);
+    }
+    src.connect(hp); hp.connect(lp); lp.connect(gain); gain.connect(dest);
+    src.start(startT); src.stop(startT + dur + 0.05);
+    return { src: src, gain: gain };
+  }
+
+  /* ── Play a pitched tone with envelope ─────────────────── */
+  function playTone(c, dest, freq, type, startT, dur, vol, attack) {
+    var osc  = c.createOscillator();
+    var gain = c.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, startT);
+    osc.connect(gain); gain.connect(dest);
+    var a = attack || 0.008;
+    gain.gain.setValueAtTime(0.0001, startT);
+    gain.gain.linearRampToValueAtTime(vol, startT + a);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startT + dur);
+    osc.start(startT); osc.stop(startT + dur + 0.05);
+    return { osc: osc, gain: gain };
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     ENGINE — Realistic twin-turbofan sound (B737/B707 style)
+     Architecture:
+       A. Sub-bass compressor drum   (sawtooth 45 Hz, band-shaped)
+       B. Mid fan roar               (sawtooth 130 Hz, band-pass 200-900 Hz)
+       C. Turbine screech            (sine 1800 Hz — N1 spool tone)
+       D. Broadband air noise        (filtered white noise 600-3000 Hz)
+       E. Intake rumble LFO          (slow 3 Hz AM on A — surge feel)
+     All feed through a dynamics compressor into destination.
+  ═══════════════════════════════════════════════════════════ */
+  function startEngine() {
+    var c = ctx();
+    if (!c || _muted || _flying) return;
+    _flying = true;
+
+    var t    = c.currentTime;
+    var dest = masterChain(c);
+    _eng.dest = dest;
+
+    /* A. Sub-bass drum */
+    var subOsc  = c.createOscillator();
+    var subFilt = c.createBiquadFilter();
+    var subGain = c.createGain();
+    subOsc.type = 'sawtooth';
+    subOsc.frequency.setValueAtTime(45, t);
+    subFilt.type = 'bandpass'; subFilt.frequency.value = 90; subFilt.Q.value = 0.7;
+    subGain.gain.setValueAtTime(0.0001, t);
+    subGain.gain.linearRampToValueAtTime(0.55, t + 3.0);   // spool-up 3 s
+    subOsc.connect(subFilt); subFilt.connect(subGain); subGain.connect(dest);
+    subOsc.start(t);
+    _eng.subOsc = subOsc; _eng.subFilt = subFilt; _eng.subGain = subGain;
+
+    /* B. Fan roar */
+    var fanOsc  = c.createOscillator();
+    var fanFilt = c.createBiquadFilter();
+    var fanGain = c.createGain();
+    fanOsc.type = 'sawtooth';
+    fanOsc.frequency.setValueAtTime(130, t);
+    fanFilt.type = 'bandpass'; fanFilt.frequency.value = 380; fanFilt.Q.value = 0.9;
+    fanGain.gain.setValueAtTime(0.0001, t);
+    fanGain.gain.linearRampToValueAtTime(0.45, t + 2.5);
+    fanOsc.connect(fanFilt); fanFilt.connect(fanGain); fanGain.connect(dest);
+    fanOsc.start(t);
+    _eng.fanOsc = fanOsc; _eng.fanFilt = fanFilt; _eng.fanGain = fanGain;
+
+    /* C. N1 turbine tone */
+    var turbOsc  = c.createOscillator();
+    var turbGain = c.createGain();
+    turbOsc.type = 'sine';
+    turbOsc.frequency.setValueAtTime(1800, t);
+    turbGain.gain.setValueAtTime(0.0001, t);
+    turbGain.gain.linearRampToValueAtTime(0.04, t + 2.8);
+    turbOsc.connect(turbGain); turbGain.connect(dest);
+    turbOsc.start(t);
+    _eng.turbOsc = turbOsc; _eng.turbGain = turbGain;
+
+    /* D. Broadband airflow noise (30 s buffer — plenty for a game round) */
+    var rushBuf  = makeNoiseBuf(c, 30);
+    var rushSrc  = c.createBufferSource();
+    rushSrc.buffer = rushBuf;
+    var rushLP  = c.createBiquadFilter();
+    var rushHP  = c.createBiquadFilter();
+    var rushGain = c.createGain();
+    rushLP.type = 'lowpass';  rushLP.frequency.value  = 2800;
+    rushHP.type = 'highpass'; rushHP.frequency.value  = 600;
+    rushGain.gain.setValueAtTime(0.0001, t);
+    rushGain.gain.linearRampToValueAtTime(0.18, t + 2.0);
+    rushSrc.connect(rushHP); rushHP.connect(rushLP); rushLP.connect(rushGain);
+    rushGain.connect(dest);
+    rushSrc.start(t);
+    _eng.rushSrc = rushSrc; _eng.rushGain = rushGain;
+
+    /* E. Slow LFO for engine surge (amplitude modulation on sub) */
+    var lfo     = c.createOscillator();
+    var lfoGain = c.createGain();
+    lfo.frequency.setValueAtTime(2.8, t);
+    lfoGain.gain.setValueAtTime(0.08, t);
+    lfo.connect(lfoGain); lfoGain.connect(subGain.gain);
+    lfo.start(t);
+    _eng.lfo = lfo; _eng.lfoGain = lfoGain;
+  }
+
+  function updateEngineFreq(mult) {
+    if (!_flying || _muted) return;
+    var c = _ctx; if (!c) return;
+    var t = c.currentTime;
+    var s = 0.5;   // smoothing constant
+    // spool factor: 1.0 at mult=1, rises to ~2.5 at mult=10, ~3.5 at mult=100
+    var sp = Math.min(3.6, 1.0 + Math.log(Math.max(1.01, mult)) * 0.42);
+    if (_eng.subOsc)  _eng.subOsc.frequency.setTargetAtTime(45  * sp, t, s);
+    if (_eng.fanOsc)  _eng.fanOsc.frequency.setTargetAtTime(130 * sp, t, s);
+    if (_eng.turbOsc) _eng.turbOsc.frequency.setTargetAtTime(1800 + Math.log(Math.max(1.01,mult)) * 380, t, s);
+    // Volume swells with altitude
+    var vol = Math.min(0.9, 0.55 + Math.log(Math.max(1.01, mult)) * 0.05);
+    if (_eng.dest) _eng.dest.gain && _eng.dest.gain.setTargetAtTime && void 0;
+    // Increase rush for higher speeds
+    if (_eng.rushGain) _eng.rushGain.gain.setTargetAtTime(Math.min(0.32, 0.18 + Math.log(Math.max(1.01,mult))*0.018), t, s);
+  }
+
+  function stopEngine() {
+    _flying = false;
+    ['subOsc','fanOsc','turbOsc','rushSrc','lfo'].forEach(function(k) {
+      if (_eng[k]) { try { _eng[k].stop(); } catch(e) {} }
+    });
+    if (_eng.dest) { try { _eng.dest.disconnect(); } catch(e) {} }
+    _eng = {};
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     CRASH — Hard, layered impact
+     1. Instantaneous BANG    (short noise burst, all frequencies)
+     2. Low BOOM              (sub-bass sine sweep 80→18 Hz)
+     3. Metal rip             (band noise sweeping 3000→200 Hz)
+     4. Debris rumble tail    (low-passed noise fading 2.5 s)
+  ═══════════════════════════════════════════════════════════ */
+  function playCrash() {
+    var c = ctx(); if (!c || _muted) return;
+    stopEngine();
+    var t    = c.currentTime;
+    var dest = masterChain(c);
+
+    /* 1. Instantaneous bang — wide-band impulse */
+    playNoise(c, dest, t, 0.18, 1.8, 8000, 20, 'pop');
+
+    /* 2. Sub-bass boom sweep */
+    var boom = c.createOscillator();
+    var boomG = c.createGain();
+    boom.type = 'sine';
+    boom.frequency.setValueAtTime(80, t);
+    boom.frequency.exponentialRampToValueAtTime(18, t + 0.55);
+    boomG.gain.setValueAtTime(1.4, t + 0.01);
+    boomG.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+    boom.connect(boomG); boomG.connect(dest);
+    boom.start(t); boom.stop(t + 0.65);
+
+    /* 3. Mid-high metal rip — bandpass noise sweeping down */
+    var ripBuf = makeNoiseBuf(c, 1.6);
+    var ripSrc = c.createBufferSource();
+    ripSrc.buffer = ripBuf;
+    var ripBP = c.createBiquadFilter();
+    ripBP.type = 'bandpass'; ripBP.Q.value = 1.8;
+    ripBP.frequency.setValueAtTime(3200, t + 0.03);
+    ripBP.frequency.exponentialRampToValueAtTime(180, t + 1.4);
+    var ripGain = c.createGain();
+    ripGain.gain.setValueAtTime(0.7, t + 0.03);
+    ripGain.gain.exponentialRampToValueAtTime(0.0001, t + 1.5);
+    ripSrc.connect(ripBP); ripBP.connect(ripGain); ripGain.connect(dest);
+    ripSrc.start(t + 0.03);
+
+    /* 4. Rumble tail — low-frequency noise decaying slowly */
+    var rumBuf = makeNoiseBuf(c, 2.8);
+    var rumSrc = c.createBufferSource();
+    rumSrc.buffer = rumBuf;
+    var rumLP = c.createBiquadFilter();
+    rumLP.type = 'lowpass'; rumLP.frequency.value = 220;
+    var rumGain = c.createGain();
+    rumGain.gain.setValueAtTime(0.0001, t + 0.08);
+    rumGain.gain.linearRampToValueAtTime(0.5, t + 0.3);
+    rumGain.gain.exponentialRampToValueAtTime(0.0001, t + 2.7);
+    rumSrc.connect(rumLP); rumLP.connect(rumGain); rumGain.connect(dest);
+    rumSrc.start(t + 0.08);
+
+    /* 5. Descending whistling tone — "falling" */
+    playTone(c, dest, 520, 'sawtooth', t + 0.05, 1.1, 0.22, 0.01);
+    var fall = c.createOscillator();
+    var fallG = c.createGain();
+    fall.type = 'sawtooth';
+    fall.frequency.setValueAtTime(520, t + 0.05);
+    fall.frequency.exponentialRampToValueAtTime(22, t + 1.0);
+    fallG.gain.setValueAtTime(0.22, t + 0.06);
+    fallG.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+    fall.connect(fallG); fallG.connect(dest);
+    fall.start(t + 0.05); fall.stop(t + 1.15);
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     WAITING JINGLE — "boarding call" 4-note ascending fanfare
+     C4 → E4 → G4 → C5  (C-major arpeggio, crisp sine)
+  ═══════════════════════════════════════════════════════════ */
+  function playWaiting() {
+    var c = ctx(); if (!c || _muted) return;
+    var t    = c.currentTime;
+    var dest = masterChain(c);
+    var seq  = [262, 330, 392, 523];
+    var gap  = 0.13;
+    seq.forEach(function (f, i) {
+      playTone(c, dest, f, 'sine', t + i * gap, 0.28, 0.12, 0.01);
+      // Gentle triangle harmony an octave below
+      if (i === 0) playTone(c, dest, 131, 'triangle', t, 0.55, 0.04, 0.02);
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     BET PLACED — crisp double-blip confirmation
+  ═══════════════════════════════════════════════════════════ */
+  function playBet() {
+    var c = ctx(); if (!c || _muted) return;
+    var t    = c.currentTime;
+    var dest = masterChain(c);
+    playTone(c, dest, 480, 'sine', t,        0.09, 0.14, 0.006);
+    playTone(c, dest, 600, 'sine', t + 0.09, 0.09, 0.11, 0.006);
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     CASHOUT WIN — triumphant G-major arpeggio + chord
+  ═══════════════════════════════════════════════════════════ */
+  function playCashout() {
+    var c = ctx(); if (!c || _muted) return;
+    var t    = c.currentTime;
+    var dest = masterChain(c);
+    var seq  = [392, 494, 587, 784];
+    seq.forEach(function (f, i) {
+      playTone(c, dest, f, 'sine', t + i * 0.10, 0.22, 0.16, 0.01);
+    });
+    // Held chord at the end
+    [784, 587, 494].forEach(function (f) {
+      playTone(c, dest, f, 'triangle', t + 0.40, 0.35, 0.05, 0.02);
+    });
+  }
+
+  /* ── COUNTDOWN TICK ─────────────────────────────────────── */
+  function playTick() {
+    var c = ctx(); if (!c || _muted) return;
+    playTone(c, masterChain(c), 1100, 'sine', c.currentTime, 0.055, 0.07, 0.004);
+  }
+
+  /* ── MUTE ───────────────────────────────────────────────── */
+  function toggleMute() {
+    _muted = !_muted;
+    if (_muted) stopEngine();
+    return _muted;
+  }
+
+  return {
+    startEngine,  stopEngine,
+    updateEngineFreq,
+    updateEngine: updateEngineFreq,   // alias used by flyLoop
+    playCrash,    playBet,  playCashout,
+    playWaiting,  playTick, toggleMute,
+    isMuted: function () { return _muted; }
+  };
+}());
+
+</script>
+
+<!-- APP (inlined) -->
+<script>
+/**
+ * app.js — Crown Pesa Aviator
+ *
+ * This file loads with defer. By the time it runs:
+ * - DOM is fully ready
+ * - Stub globals (App, Auth, BetPanel etc.) already exist from <head>
+ * - socket.io is loaded
+ *
+ * We REPLACE the stubs with real implementations here.
+ */
+
+(function() {
+
+  // ── STATE ───────────────────────────────────────────────────
+  var socket         = null;
+  var currentUser    = null;
+  var gameStatus     = 'idle';
+  var currentRoundId = null;
+  var betState       = { 1: null, 2: null };
+  var betAmounts     = { 1: 0,    2: 0    };  // track stake per slot for earnings display
+
+  // Expose to window so Canvas flyLoop can read without closure coupling
+  window._betState  = betState;
+  window._betAmounts = betAmounts;
+  var PAYSTACK_KEY   = '';
+  var liveBets       = {};
+
+  // ── TINY UTILS ──────────────────────────────────────────────
+  function g(id) { return document.getElementById(id); }
+
+  function safeJson(r) {
+    var ct = r.headers.get('content-type') || '';
+    console.log('[safeJson] status:', r.status, '| content-type:', ct, '| url:', r.url);
+    if (!ct.includes('application/json')) {
+      // Server returned HTML (error page) instead of JSON
+      return r.text().then(function(t) {
+        return { ok: false, msg: 'Server error ' + r.status + '. Check Railway logs.' };
+      });
+    }
+    return r.json().catch(function() {
+      return { ok: false, msg: 'Invalid response from server' };
+    });
+  }
+
+  function httpPost(url, data, cb) {
+    fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(data)
+    })
+    .then(safeJson)
+    .then(cb)
+    .catch(function(e){ cb({ ok: false, msg: 'Cannot reach server. Check your connection.' }); });
+  }
+
+  function httpGet(url, cb) {
+    fetch(url)
+    .then(safeJson)
+    .then(cb)
+    .catch(function(e){ cb({ ok: false, msg: 'Cannot reach server. Check your connection.' }); });
+  }
+
+  function toast(msg, type) {
+    var c = g('toasts'); if (!c) return;
+    var d = document.createElement('div');
+    d.className   = 'toast ' + (type || 'ok');
+    d.textContent = msg;
+    c.appendChild(d);
+    setTimeout(function(){ if(d.parentNode) d.parentNode.removeChild(d); }, 4500);
+  }
+
+  function showAlert(id, msg) {
+    var e = g(id); if (!e) return;
+    e.textContent    = msg;
+    e.className      = 'form-alert error';
+    e.style.display  = 'block';
+  }
+
+  function hideAlert(id) {
+    var e = g(id); if (!e) return;
+    e.style.display = 'none';
+  }
+
+  function setText(id, txt) {
+    var e = g(id); if (e) e.textContent = txt;
+  }
+
+  // ── MODE BAR ────────────────────────────────────────────────
+  function setModeBar(mode) {
+    var bar = g('mode-bar'), dot = g('mode-dot'), txt = g('mode-text');
+    if (mode === 'live') {
+      if (bar) bar.className   = 'mode-bar live';
+      if (dot) dot.style.color = '#00cc44';
+      if (txt) txt.textContent = '● LIVE MODE';
+    } else {
+      if (bar) bar.className   = 'mode-bar fun';
+      if (dot) dot.style.color = '#ff8800';
+      if (txt) txt.textContent = '● FUN MODE — Register to play';
+    }
+  }
+
+  // ── BALANCE UI ──────────────────────────────────────────────
+  function updateBalanceUI() {
+    if (!currentUser) return;
+    var sym = (currentUser.currency && currentUser.currency.sym) || 'KSh';
+    var bal = parseFloat(currentUser.balance || 0).toFixed(2);
+    ['nav-sym','w-sym','sb-sym'].forEach(function(id){ setText(id,sym); });
+    ['nav-bal','w-bal','sb-bal'].forEach(function(id){ setText(id,bal); });
+    var sbBal = g('sidebar-bal');
+    if (sbBal) sbBal.style.display = 'block';
+  }
+
+  function fetchMe() {
+    httpGet('/api/me', function(d) {
+      if (d.ok && d.user) { currentUser = d.user; updateBalanceUI(); }
+    });
+  }
+
+  // ── SHOW/HIDE nav sections ───────────────────────────────────
+  function onUserLogin() {
+    console.log('[onUserLogin] Called. User:', currentUser ? currentUser.username : 'null');
+    var ng = g('nav-guest'), nu = g('nav-user');
+    if (ng) ng.style.display = 'none';
+    if (nu) nu.style.display = 'flex';
+    setModeBar('live');
+    updateBalanceUI();
+    // Expose currency symbol for Canvas earn display
+    if (currentUser && currentUser.currency) window._currencySym = currentUser.currency.sym || '';
+    if (currentUser && currentUser.isAdmin) {
+      var ab = g('btn-admin'); if (ab) ab.style.display = 'inline-block';
+    }
+    connectSocket();
+  }
+
+  // ── BET BUTTONS ─────────────────────────────────────────────
+  function setBetBtn(s, cls, html) {
+    var btn = g('bet-btn-' + s); if (!btn) return;
+    btn.className = 'bet-btn ' + cls;
+    btn.innerHTML = html;
+  }
+
+  function updateBetButtons(phase) {
+    [1, 2].forEach(function(s) {
+      var bs = betState[s];
+      if (phase === 'waiting') {
+        if (!bs)             setBetBtn(s, 'idle',     'BET');
+        if (bs === 'placed') {
+          var aoEl2 = g('ac-'+s), aoInp = g('ao-'+s);
+          var acLabel = (aoEl2 && aoEl2.checked && aoInp) ? ' @ ' + parseFloat(aoInp.value).toFixed(2) + 'x' : '';
+          setBetBtn(s, 'placed', '✓ PLACED' + acLabel);
+        }
+      } else if (phase === 'flying') {
+        if (bs === 'placed') setBetBtn(s, 'cashout',  'CASH OUT');
+        if (!bs)             setBetBtn(s, 'inactive', 'WAIT...');   // faded — can't bet mid-round
+      } else {
+        if (!bs) setBetBtn(s, 'idle', 'BET');
+      }
+    });
+  }
+
+  // ── HISTORY BAR ─────────────────────────────────────────────
+  function chipClass(cp) {
+    cp = parseFloat(cp);
+    return 'h-chip ' + (cp >= 10 ? 'h-moon' : cp >= 3 ? 'h-high' : cp >= 2 ? 'h-mid' : 'h-low');
+  }
+
+  var _allHistory = []; // full history kept in memory
+
+  function renderHistoryBar(rounds) {
+    if (!rounds || !rounds.length) return;
+    // Merge with existing, deduplicate by id, keep newest first
+    var seen = {};
+    _allHistory.forEach(function(r){ seen[r.id] = true; });
+    rounds.forEach(function(r) {
+      if (!seen[r.id]) { _allHistory.push(r); seen[r.id] = true; }
+    });
+    _allHistory.sort(function(a,b){ return b.id - a.id; });
+    if (_allHistory.length > 200) _allHistory = _allHistory.slice(0,200);
+    // Persist to localStorage — survives refresh AND server restart
+    try { localStorage.setItem('cp_history_v2', JSON.stringify(_allHistory)); } catch(e){}
+    drawHistoryBar();
+  }
+
+  function drawHistoryBar() {
+    var bar = g('history-bar'); if (!bar) return;
+    var show = _allHistory.slice(0, 25);
+    bar.innerHTML = show.map(function(r) {
+      var cp = parseFloat(r.crash_point);
+      var fmt = cp < 100 ? cp.toFixed(2) : Math.floor(cp).toLocaleString();
+      return '<span class="' + chipClass(cp) + '">' + fmt + 'x</span>';
+    }).join('');
+    // Always update expanded if visible (realtime)
+    var exp = g('history-expanded');
+    if (exp && exp.style.display !== 'none') renderExpanded();
+  }
+
+  function renderExpanded() {
+    var exp = g('history-expanded'); if (!exp) return;
+    if (!_allHistory.length) {
+      exp.innerHTML = '<p style="color:#444;font-size:.75rem;padding:6px">No history yet</p>';
+      return;
+    }
+    var html = '<div style="padding:2px 4px 6px;font-size:.6rem;color:#555">'
+      + _allHistory.length + ' rounds &nbsp;&#8226;&nbsp; newest first</div>'
+      + '<div class="history-expanded-grid">';
+    _allHistory.forEach(function(r, i) {
+      var cp  = parseFloat(r.crash_point);
+      var fmt = cp < 100 ? cp.toFixed(2) : Math.floor(cp).toLocaleString();
+      var rid = r.id && r.id < 1e12 ? r.id : (i+1); // use real round ID if it's not a timestamp
+      html += '<span class="' + chipClass(cp) + '" style="font-size:.62rem;cursor:default"'
+        + ' title="Round #' + rid + '">#' + rid + ' ' + fmt + 'x</span>';
+    });
+    html += '</div>';
+    exp.innerHTML = html;
+  }
+
+  window.toggleHistory = function() {
+    var exp = g('history-expanded');
+    var btn = g('history-toggle');
+    if (!exp) return;
+    var visible = exp.style.display !== 'none';
+    exp.style.display = visible ? 'none' : 'block';
+    if (btn) btn.innerHTML = visible ? '&#9660;' : '&#9650;';
+    if (!visible) renderExpanded();
+  };
+
+
+  // Restore from localStorage immediately on load
+  (function restoreHistory() {
+    try {
+      var saved = localStorage.getItem('cp_history_v2');
+      if (saved) {
+        _allHistory = JSON.parse(saved);
+        drawHistoryBar();
+        console.log('[History] Restored', _allHistory.length, 'rounds from localStorage');
+      }
+    } catch(e) { _allHistory = []; }
+  })();
+
+  function addHistoryChip(cp, roundId) {
+    var entry = { crash_point: cp, id: roundId || Date.now() };
+    _allHistory.unshift(entry);
+    if (_allHistory.length > 200) _allHistory = _allHistory.slice(0, 200);
+    try { localStorage.setItem('cp_history_v2', JSON.stringify(_allHistory)); } catch(e){}
+    drawHistoryBar();
+  }
+
+  // ── LIVE BETS SIDEBAR ───────────────────────────────────────
+  var _activeSidebarTab = 'live';
+
+  function addLiveBetRow(username, amount) {
+    var sym = (currentUser && currentUser.currency) ? currentUser.currency.sym : 'KSh';
+    var d   = document.createElement('div');
+    d.className = 'live-bet-row';
+    d.id        = 'lbr-' + username;
+    d.innerHTML = '<div class="lbr-user">' + username + '</div>'
+      + '<div><div class="lbr-amt">' + sym + parseFloat(amount).toFixed(2)
+      + '</div><div class="lbr-co" id="lbr-co-' + username + '"></div></div>';
+    liveBets[username] = d;
+
+    if (_activeSidebarTab === 'live') {
+      var body = g('sidebar-body'); if (!body) return;
+      var emp  = body.querySelector('.empty-msg');
+      if (emp) body.innerHTML = '';
+      var existing = g('lbr-' + username);
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+      body.insertBefore(d, body.firstChild);
+    }
+  }
+
+  function updateLiveBetRow(username, cashoutAt, lost, win) {
+    var co = g('lbr-co-' + username); if (!co) return;
+    co.className = lost ? 'lbr-lost' : 'lbr-co';
+    if (lost) {
+      co.textContent = '💥 lost';
+    } else {
+      var sym = currentUser && currentUser.currency ? currentUser.currency.sym : '';
+      co.innerHTML = '&#10003; ' + parseFloat(cashoutAt).toFixed(2) + 'x'
+        + (win ? ' <span style="color:var(--gold);font-size:.65rem">+' + sym + parseFloat(win).toFixed(2) + '</span>' : '');
+    }
+  }
+
+  // ── SOCKET ──────────────────────────────────────────────────
+  // Page Visibility API — keep socket alive when screen turns off/tab hidden
+  if (typeof document.hidden !== 'undefined') {
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) {
+        console.log('[Visibility] Tab visible again — checking socket...');
+        if (!socket || !socket.connected) {
+          console.log('[Visibility] Socket disconnected while hidden — reconnecting');
+          connectSocket();
+        } else {
+          // Re-request game state in case we missed events
+          socket.emit('request:state');
+        }
+      }
+    });
+  }
+
+  function connectSocket() {
+    console.log('[connectSocket] Called. io available:', typeof io !== 'undefined');
+    if (typeof io === 'undefined') {
+      console.warn('[connectSocket] socket.io not loaded yet, retrying in 300ms...');
+      setTimeout(connectSocket, 300);
+      return;
+    }
+    if (socket) {
+      console.log('[connectSocket] Disconnecting old socket');
+      try { socket.removeAllListeners(); socket.disconnect(); } catch(e){ console.warn('[connectSocket] Disconnect error:', e.message); }
+      socket = null;
+    }
+
+    socket = io({ transports: ['websocket', 'polling'] });
+
+    socket.on('connect', function() {
+      console.log('[Socket] ✅ Connected! ID:', socket.id);
+    });
+    socket.on('disconnect', function(reason) {
+      console.warn('[Socket] Disconnected. Reason:', reason);
+    });
+    socket.on('connect_error', function(err) {
+      console.error('[Socket] Connection error:', err.message);
+    });
+
+    socket.on('game:state', function(snap) { console.log('[Socket] game:state:', JSON.stringify(snap));
+      currentRoundId = snap.roundId || null;
+      var lbl = g('round-label');
+      var mr  = g('mode-round');
+      if (lbl) lbl.textContent = snap.roundId ? 'ROUND #' + snap.roundId : 'ROUND #—';
+      if (mr)  mr.textContent  = snap.roundId ? '#' + snap.roundId : '';
+
+      if (snap.status === 'waiting') {
+        gameStatus = 'waiting';
+        if (window.Canvas) Canvas.showWaiting(snap.waitUntil);
+        updateBetButtons('waiting');
+      } else if (snap.status === 'in_progress') {
+        gameStatus = 'flying';
+        var drift = snap.serverNow ? (Date.now() - snap.serverNow) : 0;
+        if (window.Canvas) Canvas.showFlying(snap.startedAt + drift);
+        updateBetButtons('flying');
+      } else if (snap.status === 'crashed') {
+        gameStatus = 'crashed';
+        if (window.Canvas) Canvas.showCrash(snap.crashPoint);
+        updateBetButtons('idle');
+      } else {
+        if (window.Canvas) Canvas.showIdle();
+      }
+    });
+
+    socket.on('round:waiting', function(d) {
+      currentRoundId = d.roundId; gameStatus = 'waiting';
+      var lbl = g('round-label');
+      if (lbl) lbl.textContent = 'ROUND #' + d.roundId;
+      [1,2].forEach(function(s){ if (betState[s] !== 'placed') betState[s] = null; });
+      liveBets = {};
+      if (_activeSidebarTab === 'live') { var lb = g('sidebar-body'); if(lb) lb.innerHTML = '<p class="empty-msg">Waiting for bets...</p>'; }
+      if (window.Canvas) Canvas.showWaiting(d.waitUntil);
+      updateBetButtons('waiting');
+    });
+
+    socket.on('round:start', function(d) {
+      gameStatus = 'flying';
+      if (window.Canvas) Canvas.showFlying(d.startedAt);
+      updateBetButtons('flying');
+    });
+
+    socket.on('round:crash', function(d) {
+      // Notify auto-bet engine
+      if (window.AutoBet && window.AutoBet.active) setTimeout(function(){ window.AutoBet.onCrash(); }, 100);
+      gameStatus = 'crashed';
+      if (window.Canvas) Canvas.showCrash(d.crashPoint);
+      updateBetButtons('idle');
+      addHistoryChip(d.crashPoint);
+      [1,2].forEach(function(s) {
+        if (betState[s] === 'placed') {
+          betState[s] = null; betAmounts[s] = 0; setBetBtn(s, 'idle', 'BET');
+          toast('💥 Crashed at ' + parseFloat(d.crashPoint).toFixed(2) + 'x — Bet ' + s + ' lost', 'err');
+        }
+      });
+      if (currentUser) fetchMe();
+    });
+
+    socket.on('bet:placed',  function(d) { addLiveBetRow(d.username, d.amount); });
+    socket.on('bet:cashout', function(d) { updateLiveBetRow(d.username, d.cashout_at, false, d.win); });
+
+    socket.on('bet:confirm', function(d) {
+      console.log('[bet:confirm] slot:', d.slot, 'newBalance:', d.newBalance);
+      if (currentUser) { currentUser.balance = d.newBalance; updateBalanceUI(); }
+      // Server confirmed this slot is live — update the button display
+      if (d.slot) {
+        var s = parseInt(d.slot);
+        if (betState[s] === 'placed') {
+          // Show auto-cashout target if set
+          var acEl = g('ac-'+s), aoEl = g('ao-'+s);
+          var acLabel = (acEl && acEl.checked && aoEl)
+            ? ' @' + parseFloat(aoEl.value).toFixed(2) + 'x' : '';
+          setBetBtn(s, 'placed', '✓' + acLabel);
+        }
+      }
+    });
+
+    socket.on('cashout:confirm', function(d) {
+      // d.slot tells us which bet slot cashed out — only clear that one
+      var sym = currentUser && currentUser.currency ? currentUser.currency.sym : '';
+      var msg = '🎉 Cashed out ' + parseFloat(d.cashout_at).toFixed(2) + 'x — Won ' + sym + parseFloat(d.win).toFixed(2);
+      if (d.slot) {
+        // Single slot cashout
+        var s = parseInt(d.slot);
+        if (betState[s] === 'placed' || betState[s] === 'loading') {
+          betState[s] = null; betAmounts[s] = 0; setBetBtn(s, 'idle', 'BET');
+          toast(msg, 'win');
+          if (window.Sound) window.Sound.playCashout();
+          if (currentUser) { currentUser.balance = d.newBalance; updateBalanceUI(); }
+        }
+      } else {
+        // Legacy: clear first found placed slot
+        for (var s2 = 1; s2 <= 2; s2++) {
+          if (betState[s2] === 'placed' || betState[s2] === 'loading') {
+            betState[s2] = null; betAmounts[s2] = 0; setBetBtn(s2, 'idle', 'BET');
+            toast(msg, 'win');
+            if (currentUser) { currentUser.balance = d.newBalance; updateBalanceUI(); }
+            break; // only clear ONE
+          }
+        }
+      }
+    });
+
+    socket.on('error', function(d) {
+      console.error('[Socket error]', d.msg);
+      var msg = d.msg || 'Server error';
+      toast(msg, 'err');
+      // Only reset buttons that were in loading state (not placed/cashout)
+      [1,2].forEach(function(s){
+        if (betState[s] === 'loading') {
+          betState[s] = 'placed'; // revert to placed so cashout can retry
+          setBetBtn(s, gameStatus === 'flying' ? 'cashout' : 'placed',
+            gameStatus === 'flying' ? 'CASH OUT' : '✓ PLACED');
+        } else if (!betState[s]) {
+          setBetBtn(s, 'idle', 'BET');
+        }
+      });
+    });
+
+    socket.on('game:history', function(rounds) { renderHistoryBar(rounds); });
+  }
+
+  // ── REAL IMPLEMENTATIONS — replace head stubs ────────────────
+
+  window.App = {
+    openModal: function(id) {
+      console.log('[App.openModal] id:', id);
+      var m = g(id);
+      if (!m) { console.error('[App.openModal] Element not found:', id); return; }
+      m.classList.add('open');
+      // Auto-trigger data load for admin panel
+      if (id === 'modal-admin') {
+        setTimeout(function() {
+          if (typeof window.loadAdminPanel === 'function') {
+            window.loadAdminPanel();
+          } else {
+            console.error('[App.openModal] loadAdminPanel not defined yet');
+          }
+        }, 80);
+      }
+    },
+    closeModal: function(id) {
+      var m = g(id); if (m) m.classList.remove('open');
+    },
+    swapModal: function(a, b) { window.App.closeModal(a); window.App.openModal(b); }
+  };
+
+  window.Auth = {
+    login: function() {
+      var email = g('li-email') ? g('li-email').value.trim() : '';
+      var pass  = g('li-pass')  ? g('li-pass').value         : '';
+      hideAlert('login-alert');
+      if (!email || !pass) { showAlert('login-alert', 'Email and password are required'); return; }
+      var btn = g('li-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Logging in…'; }
+      httpPost('/api/login', { email: email, password: pass }, function(d) {
+        if (btn) { btn.disabled = false; btn.textContent = 'LOGIN'; }
+        if (d.ok) {
+          currentUser = d.user;
+          window.App.closeModal('modal-login');
+          onUserLogin();
+          toast('Welcome back, ' + d.user.username + '!', 'ok');
+        } else {
+          showAlert('login-alert', d.msg || 'Incorrect email or password');
+        }
+      });
+    },
+
+    register: function() {
+      var u = g('reg-user')    ? g('reg-user').value.trim()    : '';
+      var e = g('reg-email')   ? g('reg-email').value.trim()   : '';
+      var p = g('reg-pass')    ? g('reg-pass').value           : '';
+      var c = g('reg-country') ? g('reg-country').value        : 'KE';
+      hideAlert('reg-alert');
+      if (!u || !e || !p)     { showAlert('reg-alert', 'Please fill in all fields'); return; }
+      if (u.length < 3)       { showAlert('reg-alert', 'Username must be at least 3 characters'); return; }
+      if (p.length < 8)       { showAlert('reg-alert', 'Password must be at least 8 characters'); return; }
+      if (e.indexOf('@') < 1) { showAlert('reg-alert', 'Please enter a valid email address'); return; }
+      var btn = g('reg-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+      httpPost('/api/register', { username: u, email: e, password: p, country: c }, function(d) {
+        if (btn) { btn.disabled = false; btn.textContent = 'CREATE ACCOUNT'; }
+        if (d.ok) {
+          currentUser = d.user;
+          window.App.closeModal('modal-register');
+          onUserLogin();
+          toast('Welcome, ' + d.user.username + '! 🎉', 'ok');
+        } else {
+          showAlert('reg-alert', d.msg || 'Username or email already taken — please try different ones');
+        }
+      });
+    },
+
+    logout: function() {
+      httpPost('/api/logout', {}, function(){});
+      currentUser = null; betState = {1:null,2:null};
+      var ng = g('nav-guest'), nu = g('nav-user');
+      if (ng) ng.style.display = 'flex';
+      if (nu) nu.style.display = 'none';
+      setModeBar('fun');
+      setBetBtn(1,'idle','BET'); setBetBtn(2,'idle','BET');
+      connectSocket();
+    }
+  };
+
+  window.BetPanel = {
+    adj: function(s, d) {
+      var e = g('bet-amt-'+s);
+      if (e) e.value = Math.max(1, parseFloat(e.value||0) + d);
+    },
+    set: function(s, v) { var e = g('bet-amt-'+s); if (e) e.value = v; },
+    dbl: function(s)    {
+      var e = g('bet-amt-'+s);
+      if (e) e.value = parseFloat(e.value||1) * 2;
+    },
+    togAc: function(s) {
+      var c = g('ac-'+s), i = g('ao-'+s);
+      if (c && i) i.disabled = !c.checked;
+    },
+    act: function(s) {
+      if (!currentUser) { window.App.openModal('modal-login'); return; }
+      if (betState[s] === null) {
+        if (gameStatus !== 'waiting') { toast('Wait for the next round to start', 'err'); return; }
+        var amtEl = g('bet-amt-'+s);
+        var amount = amtEl ? parseFloat(amtEl.value) || 0 : 0;
+        if (amount <= 0) { toast('Please enter a bet amount', 'err'); return; }
+        var acEl = g('ac-'+s), aoEl = g('ao-'+s);
+        var auto = (acEl && acEl.checked && aoEl) ? parseFloat(aoEl.value)||0 : 0;
+        betState[s]  = 'placed';
+        betAmounts[s] = amount;   // store so earnings display knows the stake
+        setBetBtn(s, 'placed', '✓ PLACED');
+        if (window.Sound) window.Sound.playBet();
+        if (socket) socket.emit('bet:place', { amount: amount, autoCashout: auto, slot: s });
+      } else if (betState[s] === 'placed' && gameStatus === 'flying') {
+        setBetBtn(s, 'loading', '...');
+        if (socket) socket.emit('bet:cashout', { roundId: currentRoundId, slot: s });
+      }
+    }
+  };
+
+  window.Wallet = {
+    showTab: function(t) {
+      var dep = g('w-dep'), wit = g('w-wit');
+      if (dep) dep.style.display = t === 'dep' ? 'block' : 'none';
+      if (wit) wit.style.display = t === 'wit' ? 'block' : 'none';
+      if (t === 'wit') this.loadBanks();
+      if (t === 'dep') {
+        // Show verify hint if there's a pending payment reference
+        var hint = g('dep-verify-hint');
+        if (hint) {
+          var ref = null; try { ref = sessionStorage.getItem('ps_ref'); } catch(ex){}
+          hint.style.display = ref ? 'block' : 'none';
+        }
+      }
+    },
+    loadBanks: function() {
+      httpGet('/api/banks', function(d) {
+        var sel = g('wit-bank'); if (!sel || !d.ok) return;
+        sel.innerHTML = (d.banks||[]).map(function(b){ return '<option>'+b+'</option>'; }).join('');
+      });
+    },
+    deposit: function() {
+      var amt = g('dep-amt') ? parseFloat(g('dep-amt').value) : 0;
+      if (!amt || amt <= 0) { showAlert('dep-alert', 'Enter a valid amount'); return; }
+      if (!currentUser || !currentUser.email) { showAlert('dep-alert', 'Please log in first'); return; }
+
+      var btn = g('dep-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Initializing…'; }
+
+      httpPost('/api/deposit/init', { amount: amt }, function(d) {
+        console.log('[Deposit] init response:', JSON.stringify(d));
+        if (btn) { btn.disabled = false; btn.textContent = 'PAY WITH PAYSTACK'; }
+
+        if (!d.ok) {
+          var errMsg = d.msg || 'Payment initialization failed';
+          console.error('[Deposit] Server error:', errMsg);
+          showFmAlert('dep-alert', errMsg);
+          return;
+        }
+
+        if (!d.url) {
+          showFmAlert('dep-alert', 'No payment URL — check PAYSTACK_SECRET_KEY in Railway Variables tab');
+          return;
+        }
+
+        // Store reference so we can verify when user returns
+        sessionStorage.setItem('ps_ref', d.reference);
+        sessionStorage.setItem('ps_amt', String(amt));
+
+        // Try PaystackPop inline first, fall back to redirect
+        if (typeof PaystackPop !== 'undefined' && PAYSTACK_KEY) {
+          console.log('[Deposit] Opening Paystack popup. Key prefix:', PAYSTACK_KEY.substring(0,10));
+          try {
+            var handler = PaystackPop.setup({
+              key:      PAYSTACK_KEY,
+              email:    (currentUser && currentUser.email) ? currentUser.email : (d.email || (function(){ try{return localStorage.getItem('cp_pending_email')||'';}catch(ex){return '';} }())),
+              amount:   Math.round(amt * 100),
+              currency: (currentUser.currency && currentUser.currency.code) || 'KES',
+              ref:      d.reference,
+              callback: function(resp) {
+                console.log('[Deposit] Paystack callback, ref:', resp.reference);
+                httpGet('/api/deposit/verify/' + resp.reference, function(v) {
+                  console.log('[Deposit] Verify response:', JSON.stringify(v));
+                  if (v.ok) {
+                    toast('✅ Deposit of ' + (currentUser.currency.sym||'') + amt + ' successful!', 'ok');
+                    if (currentUser) currentUser.balance = v.newBalance;
+                    updateBalanceUI();
+                    window.App.closeModal('modal-wallet');
+                    sessionStorage.removeItem('ps_ref');
+                  } else {
+                    toast(v.msg || 'Verification failed', 'err');
+                  }
+                });
+              },
+              onClose: function() {
+                console.log('[Deposit] Paystack popup closed by user');
+              }
+            });
+            handler.openIframe();
+          } catch(e) {
+            console.error('[Deposit] PaystackPop error:', e.message, '— falling back to redirect');
+            window.open(d.url, '_blank');
+          }
+        } else {
+          // Fallback: open Paystack page in new tab
+          console.log('[Deposit] PaystackPop not available — opening URL in new tab');
+          showAlert('dep-alert', 'Opening Paystack in a new tab. Return here after payment to verify.', 'info');
+          window.open(d.url, '_blank');
+        }
+      });
+    },
+    verifyPending: function() {
+      var ref = null;
+      try { ref = sessionStorage.getItem('ps_ref'); } catch(ex){}
+      if (!ref) { toast('No pending payment reference found', 'err'); return; }
+      var hint = g('dep-verify-hint');
+      if (hint) hint.style.display = 'none';
+      httpGet('/api/deposit/verify/' + ref, function(v) {
+        console.log('[Wallet.verifyPending]', JSON.stringify(v));
+        if (v.ok) {
+          toast('✅ Deposit verified! Balance updated.', 'ok');
+          if (currentUser) currentUser.balance = v.newBalance;
+          updateBalanceUI();
+          try { sessionStorage.removeItem('ps_ref'); } catch(ex){}
+          window.App.closeModal('modal-wallet');
+        } else {
+          toast(v.msg || 'Payment not confirmed yet', 'err');
+        }
+      });
+    },
+
+    withdraw: function() {
+      var amt  = g('wit-amt')  ? parseFloat(g('wit-amt').value)        : 0;
+      var bank = g('wit-bank') ? g('wit-bank').value                   : '';
+      var acct = g('wit-acct') ? g('wit-acct').value.trim()            : '';
+      var name = g('wit-name') ? g('wit-name').value.trim()            : '';
+      if (!amt||!bank||!acct||!name){ showAlert('wit-alert','All fields required'); return; }
+      var btn = g('wit-btn');
+      if (btn) { btn.disabled=true; btn.textContent='Submitting…'; }
+      httpPost('/api/withdraw',{amount:amt,bank_name:bank,account_number:acct,account_name:name},function(d){
+        if (btn) { btn.disabled=false; btn.textContent='SUBMIT WITHDRAWAL'; }
+        if (d.ok){ toast(d.msg,'ok'); fetchMe(); window.App.closeModal('modal-wallet'); }
+        else       showAlert('wit-alert', d.msg||'Withdrawal failed');
+      });
+    }
+  };
+
+  window.Sidebar = {
+    show: function(tab, btn) {
+      document.querySelectorAll('.sidebar-tab').forEach(function(b){ b.classList.remove('active'); });
+      if (btn) btn.classList.add('active');
+      _activeSidebarTab = tab;
+      var body = g('sidebar-body'); if (!body) return;
+
+      if (tab === 'live') {
+        var keys = Object.keys(liveBets);
+        if (keys.length) {
+          body.innerHTML = '';
+          // Append most recent bets first (keys may be unordered, sort by DOM order)
+          keys.forEach(function(k) { body.appendChild(liveBets[k].cloneNode(true)); });
+        } else {
+          body.innerHTML = '<p class="empty-msg">Waiting for bets...</p>';
+        }
+
+      } else if (tab === 'my') {
+        if (!currentUser) { body.innerHTML = '<p class="empty-msg">Login to see your bets.</p>'; return; }
+        body.innerHTML = '<p class="empty-msg" style="font-size:.7rem">Loading...</p>';
+        httpGet('/api/user/bet-history', function(d) {
+          if (!d.ok || !d.bets || !d.bets.length) {
+            body.innerHTML = '<p class="empty-msg">No bets yet.</p>'; return;
+          }
+          var html = '<table style="width:100%;font-size:.72rem;border-collapse:collapse">'
+            + '<thead><tr>'
+            + '<th style="padding:5px 4px;color:var(--muted);text-align:left">Round</th>'
+            + '<th style="padding:5px 4px;color:var(--muted);text-align:right">Bet</th>'
+            + '<th style="padding:5px 4px;color:var(--muted);text-align:right">Result</th>'
+            + '</tr></thead><tbody>';
+          d.bets.forEach(function(b) {
+            var won = b.status === 'won';
+            var resultColor = won ? 'var(--green)' : '#ff6666';
+            var result = won ? '+' + parseFloat(b.profit).toFixed(2) + ' @ ' + parseFloat(b.cashout_at).toFixed(2) + 'x' : 'Lost';
+            html += '<tr style="border-bottom:1px solid #111">'
+              + '<td style="padding:5px 4px;color:#aaa">#' + b.round_id + '</td>'
+              + '<td style="padding:5px 4px;text-align:right;color:var(--gold)">' + parseFloat(b.amount).toFixed(2) + '</td>'
+              + '<td style="padding:5px 4px;text-align:right;color:' + resultColor + '">' + result + '</td>'
+              + '</tr>';
+          });
+          html += '</tbody></table>';
+          body.innerHTML = html;
+        });
+
+      } else if (tab === 'leaders') {
+        body.innerHTML = '<p class="empty-msg" style="font-size:.7rem">Loading...</p>';
+        httpGet('/api/leaderboard', function(d) {
+          if (!d.ok || !d.leaders || !d.leaders.length) {
+            body.innerHTML = '<p class="empty-msg">No data yet.</p>'; return;
+          }
+          var html = '<div style="padding:4px 0">';
+          d.leaders.forEach(function(p, i) {
+            var medal = i === 0 ? '&#127945;' : i === 1 ? '&#129352;' : i === 2 ? '&#129353;' : (i+1)+'.';
+            var profitColor = p.net_profit >= 0 ? 'var(--green)' : '#ff6666';
+            html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid #111">'
+              + '<span style="font-size:.8rem;width:22px;flex-shrink:0;text-align:center">' + medal + '</span>'
+              + '<div style="flex:1;min-width:0"><div style="font-size:.78rem;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + p.username + '</div>'
+              + '<div style="font-size:.68rem;color:var(--muted)">' + p.total_bets + ' bets &middot; avg ' + parseFloat(p.avg_cashout||0).toFixed(2) + 'x</div></div>'
+              + '<div style="font-size:.75rem;font-family:var(--fnum);color:' + profitColor + ';flex-shrink:0">'
+              + (p.net_profit >= 0 ? '+' : '') + parseFloat(p.net_profit).toFixed(0) + '</div>'
+              + '</div>';
+          });
+          html += '</div>';
+          body.innerHTML = html;
+        });
+
+      } else if (tab === 'txns') {
+        if (!currentUser) { body.innerHTML = '<p class="empty-msg">Login to see history.</p>'; return; }
+        body.innerHTML = '<p class="empty-msg" style="font-size:.7rem">Loading...</p>';
+        httpGet('/api/user/transactions', function(d) {
+          if (!d.ok || !d.transactions || !d.transactions.length) {
+            body.innerHTML = '<p class="empty-msg">No transactions yet.</p>'; return;
+          }
+          var html = '<div style="padding:4px 0">';
+          d.transactions.forEach(function(t) {
+            var typeColors = { deposit:'var(--green)', win:'var(--green)', withdrawal:'#ff8800', bet:'#ff6666', adjustment:'#88ccff' };
+            var color = typeColors[t.type] || '#aaa';
+            var sign  = (t.type==='deposit'||t.type==='win') ? '+' : '-';
+            var dt    = new Date(t.created_at);
+            var dateStr = dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) + ' ' + dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+            html += '<div style="display:flex;align-items:center;gap:6px;padding:7px 4px;border-bottom:1px solid #111">'
+              + '<div style="flex:1;min-width:0">'
+              + '<div style="font-size:.76rem;color:#ddd;text-transform:capitalize">' + t.type + '</div>'
+              + '<div style="font-size:.66rem;color:var(--muted)">' + dateStr + '</div></div>'
+              + '<div style="font-size:.76rem;font-family:var(--fnum);color:' + color + ';flex-shrink:0">'
+              + sign + parseFloat(t.amount).toFixed(2) + ' <span style="font-size:.62rem;color:var(--muted)">' + (t.currency_code||'') + '</span>'
+              + '</div>'
+              + '<span style="font-size:.65rem;padding:1px 5px;border-radius:3px;background:'
+              + (t.status==='completed'?'#002200':t.status==='pending'?'#221100':'#220000')
+              + ';color:'+(t.status==='completed'?'#66cc66':t.status==='pending'?'#ffaa00':'#ff6666')+'">'
+              + t.status + '</span>'
+              + '</div>';
+          });
+          html += '</div>';
+          body.innerHTML = html;
+        });
+      }
+    }
+  };
+
+  // ── ADMIN ────────────────────────────────────────────────────
+  window.loadAdminPanel = function() {
+    console.log('[Admin] Loading admin panel...');
+    var panel = g('admin-content');
+    if (!panel) { console.error('[Admin] admin-content element not found'); return; }
+    panel.innerHTML = '<p style="color:#888;padding:12px;text-align:center">Loading...</p>';
+
+    httpGet('/api/admin/stats', function(d) {
+      console.log('[Admin] Stats response:', JSON.stringify(d).substring(0,200));
+      if (!panel) return;
+
+      if (!d.ok) {
+        panel.innerHTML = '<p style="color:#f44;padding:12px">'+(d.msg||'Not authorised — make sure your account has is_admin=1 in the database')+'</p>';
+        return;
+      }
+
+      var pw = d.pendingWithdrawals || [];
+      var fa = d.fraudAlerts || [];
+      var snap = d.currentRound || {};
+
+      // ── Stats grid ────────────────────────────────────────
+      var html = '<div class="admin-stat-grid">'
+        + '<div class="admin-stat"><div class="val">'+(d.totalUsers||0)+'</div><div class="lbl">Users</div></div>'
+        + '<div class="admin-stat"><div class="val">'+parseFloat(d.totalDeposits||0).toLocaleString()+'</div><div class="lbl">Deposits</div></div>'
+        + '<div class="admin-stat"><div class="val">'+(d.totalRounds||0)+'</div><div class="lbl">Rounds</div></div>'
+        + '</div>';
+
+      // ── Current round status ──────────────────────────────
+      html += '<div style="background:#0a0a18;border:1px solid #252540;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:13px">'
+        + '<span style="color:#888">Current Round:</span> '
+        + '<strong style="color:#fff">#'+(snap.roundId||'—')+'</strong>'
+        + ' &nbsp;|&nbsp; Status: <span style="color:'+(snap.status==='in_progress'?'#00cc44':snap.status==='waiting'?'#ffaa00':'#ff4444')+'">'+(snap.status||'unknown')+'</span>'
+        + '</div>';
+
+      // ── Force crash control ───────────────────────────────
+      html += '<div class="admin-crash-ctrl">'
+        + '<div style="flex:1"><strong style="color:#f44">⚠ Force Next Crash</strong><br><small style="color:#888">One round only, then resets</small></div>'
+        + '<input type="number" id="admin-cp" value="2.00" min="1.01" max="100" step="0.01" style="width:80px;background:#111;border:1px solid #444;color:#fff;padding:6px;border-radius:5px">'
+        + '<button class="btn btn-red" onclick="adminSetCrash()">Set</button>'
+        + '</div>'
+        + '<div style="background:#0a0a18;border:1px solid var(--bdr);border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:12px">'
+        + '<div style="flex:1;font-size:13px;color:#aaa">Seed 20 demo users for marketing (run once)</div>'
+        + '<button class="btn btn-outline btn-sm" onclick="adminSeedDemo()">Seed Demo Users</button>'
+        + '</div>';
+
+      // ── Pending withdrawals ───────────────────────────────
+      html += '<h3 style="color:var(--red);margin:16px 0 8px;font-size:.88rem">Pending Withdrawals ('+pw.length+')</h3>';
+      if (pw.length === 0) {
+        html += '<p style="color:#555;font-size:13px;margin-bottom:14px">No pending withdrawals.</p>';
+      } else {
+        html += '<table class="admin-table" style="margin-bottom:14px"><thead><tr><th>User</th><th>Amount</th><th>Bank</th><th>Account</th><th>Actions</th></tr></thead><tbody>';
+        pw.forEach(function(t) {
+          html += '<tr>'
+            + '<td>'+t.username+'</td>'
+            + '<td>'+parseFloat(t.amount).toFixed(2)+' '+(t.currency_code||'')+'</td>'
+            + '<td>'+(t.bank_name||'—')+'</td>'
+            + '<td>'+(t.account_number||'—')+'</td>'
+            + '<td>'
+            + '<button class="btn btn-green btn-sm" onclick="adminWithdrawal(' + t.id + ',&quot;approve&quot;)">&#10003; Approve</button> '
+            + '<button class="btn btn-red btn-sm" onclick="adminWithdrawal(' + t.id + ',&quot;reject&quot;)">&#10007; Reject</button>'
+            + '</td></tr>';
+        });
+        html += '</tbody></table>';
+      }
+
+      // ── Fraud alerts ──────────────────────────────────────
+      // ── Real Users Table ─────────────────────────────────────
+      html += '<h3 style="color:var(--red);margin:16px 0 8px;font-size:.88rem">Real Users</h3>';
+      html += '<div style="overflow-x:auto"><table class="admin-table" style="margin-bottom:16px;min-width:700px">'
+        + '<thead><tr><th>#</th><th>User</th><th>Balance</th><th>Bets</th><th>Won</th><th>Lost</th><th>Net P&L</th><th>Status</th><th style="text-align:center">Actions</th></tr></thead><tbody>';
+      if (d.usersList && d.usersList.length) {
+        d.usersList.forEach(function(u) {
+          var status = u.is_suspended ? '<span style="color:#f66">Suspended</span>' : '<span style="color:#6c6">Active</span>';
+          var net = parseFloat(u.total_won||0) - parseFloat(u.total_lost||0);
+          var netColor = net >= 0 ? '#6c6' : '#f66';
+          var net = parseFloat(u.total_won||0) - parseFloat(u.total_lost||0);
+          var isSuspended = !!u.is_suspended;
+          var statusBadge = isSuspended
+            ? '<span style="color:#f66;font-size:.7rem;background:#2a0000;padding:1px 5px;border-radius:3px">BANNED</span>'
+            : '<span style="color:#5c5;font-size:.7rem;background:#002200;padding:1px 5px;border-radius:3px">Active</span>';
+          html += '<tr>'
+            + '<td style="color:#555;font-size:.7rem">' + u.id + '</td>'
+            + '<td><strong style="color:#fff">' + u.username + '</strong>'
+            + '<div style="font-size:.62rem;color:#555">' + (u.email||'') + '</div></td>'
+            + '<td style="color:var(--gold);font-family:var(--fnum);font-weight:600">'
+            + parseFloat(u.balance||0).toFixed(2) + '</td>'
+            + '<td style="color:#aaa">' + (u.total_bets||0) + '</td>'
+            + '<td style="color:#5c5">+' + parseFloat(u.total_won||0).toFixed(0) + '</td>'
+            + '<td style="color:#f66">-' + parseFloat(u.total_lost||0).toFixed(0) + '</td>'
+            + '<td style="color:' + (net>=0?'#5c5':'#f66') + ';font-weight:600">'
+            + (net>=0?'+':'') + net.toFixed(0) + '</td>'
+            + '<td>' + statusBadge + '</td>'
+            + '<td style="white-space:nowrap;text-align:center">'
+            + '<button class="btn btn-outline btn-sm" style="font-size:.65rem;padding:2px 7px;margin:1px" '
+            + 'onclick="adminAdjustBalance(' + u.id + ',\'' + u.username + '\',' + parseFloat(u.balance||0).toFixed(2) + ')" title="Adjust balance">💰 Adjust</button>'
+            + '<button class="btn btn-red btn-sm" style="font-size:.65rem;padding:2px 7px;margin:1px" '
+            + 'onclick="adminForfeit(' + u.id + ',\'' + u.username + '\')" title="Forfeit balance">🗑 Forfeit</button>'
+            + '<button class="btn btn-sm" style="font-size:.65rem;padding:2px 7px;margin:1px;background:' + (isSuspended?'#002200':'#2a0000') + ';color:' + (isSuspended?'#5c5':'#f66') + ';border:1px solid ' + (isSuspended?'#004400':'#440000') + '" '
+            + 'onclick="adminBan(' + u.id + ',\'' + u.username + '\',' + (isSuspended?'false':'true') + ')" title="' + (isSuspended?'Unban user':'Ban user') + '">'
+            + (isSuspended ? '✓ Unban' : '⛔ Ban') + '</button>'
+            + '</td>'
+            + '</tr>';
+        });
+      } else {
+        html += '<tr><td colspan="9" style="color:#555;text-align:center;padding:12px">No users yet</td></tr>';
+      }
+      html += '</tbody></table></div>';
+
+      html += '<h3 style="color:var(--red);margin:16px 0 8px;font-size:.88rem">Fraud Alerts ('+fa.length+')</h3>';
+      if (fa.length === 0) {
+        html += '<p style="color:#555;font-size:13px">No active fraud alerts.</p>';
+      } else {
+        html += '<table class="admin-table"><thead><tr><th>User</th><th>Type</th><th>Severity</th><th>Score</th><th>Action</th></tr></thead><tbody>';
+        fa.forEach(function(f) {
+          var sc = f.severity === 'critical' ? '#ff4444' : f.severity === 'high' ? '#ff8800' : '#ffcc00';
+          html += '<tr>'
+            + '<td>'+(f.username||f.user_id)+'</td>'
+            + '<td style="font-size:.75rem">'+f.event_type+'</td>'
+            + '<td><span style="color:'+sc+';font-weight:500">'+f.severity+'</span></td>'
+            + '<td>'+parseFloat(f.bot_score||0).toFixed(0)+'</td>'
+            + '<td><button class="btn btn-outline btn-sm" onclick="adminResolve('+f.id+')">Resolve</button></td>'
+            + '</tr>';
+        });
+        html += '</tbody></table>';
+      }
+
+      panel.innerHTML = html;
+      console.log('[Admin] Panel rendered successfully');
+    });
+  };
+
+  window.adminSetCrash = function() {
+    var v = g('admin-cp') ? parseFloat(g('admin-cp').value) : 2;
+    httpPost('/api/admin/set-crash',{point:v},function(r){
+      toast(r.ok?'Next crash set to '+v+'x':(r.msg||'Error'), r.ok?'ok':'err');
+    });
+  };
+
+  // ── AUTO BET ENGINE ─────────────────────────────────────────
+  var AutoBet = {
+    active:       false,
+    roundsLeft:   0,
+    totalLoss:    0,
+    startBalance: 0,
+
+    start: function() {
+      if (!currentUser) { window.App.openModal('modal-login'); return; }
+      var amount   = parseFloat(document.getElementById('ab-amount')   ? document.getElementById('ab-amount').value   : 0) || 0;
+      var rounds   = parseInt(document.getElementById('ab-rounds')     ? document.getElementById('ab-rounds').value   : 0) || 0;
+      var cashout  = parseFloat(document.getElementById('ab-cashout')  ? document.getElementById('ab-cashout').value  : 2) || 2;
+      var stopLoss = parseFloat(document.getElementById('ab-stop-loss')? document.getElementById('ab-stop-loss').value: 0) || 0;
+
+      if (amount <= 0) { toast('Enter a valid bet amount', 'err'); return; }
+      if (rounds <= 0) { toast('Enter number of rounds', 'err'); return; }
+      if (cashout < 1.01) { toast('Cash out must be at least 1.01x', 'err'); return; }
+
+      // Store auto-cashout on both bet inputs
+      ['1','2'].forEach(function(s) {
+        var ac = document.getElementById('ac-'+s);
+        var ao = document.getElementById('ao-'+s);
+        var ba = document.getElementById('bet-amt-'+s);
+        if (ac) { ac.checked = true; }
+        if (ao) { ao.value = cashout.toFixed(2); ao.disabled = false; }
+        if (ba) { ba.value = amount; }
+      });
+
+      this.active     = true;
+      this.roundsLeft = rounds;
+      this.totalLoss  = 0;
+      this.startBalance = currentUser ? parseFloat(currentUser.balance||0) : 0;
+      this.stopLoss   = stopLoss;
+      this.amount     = amount;
+
+      var btn = document.getElementById('ab-start-btn');
+      if (btn) { btn.className = 'bet-btn placed'; btn.textContent = 'RUNNING...'; }
+      this._updateStatus();
+      toast('Auto bet started: ' + rounds + ' rounds @ ' + amount + ' → ' + cashout + 'x', 'ok');
+
+      // Place first bet if waiting
+      if (gameStatus === 'waiting') this._placeBet();
+    },
+
+    stop: function() {
+      this.active = false;
+      var btn = document.getElementById('ab-start-btn');
+      if (btn) { btn.className = 'bet-btn idle'; btn.textContent = 'START AUTO BET'; }
+      this._updateStatus('Stopped');
+      toast('Auto bet stopped', 'ok');
+    },
+
+    _placeBet: function() {
+      if (!this.active || this.roundsLeft <= 0) { this.stop(); return; }
+      if (!currentUser) { this.stop(); return; }
+      // Check stop-loss
+      var currentBal = parseFloat(currentUser.balance||0);
+      if (this.stopLoss > 0 && (this.startBalance - currentBal) >= this.stopLoss) {
+        toast('Auto bet stopped: stop-loss of ' + this.stopLoss + ' reached', 'err');
+        this.stop(); return;
+      }
+      // Trigger bet slot 1
+      if (socket && gameStatus === 'waiting' && !betState[1]) {
+        betState[1] = 'placed';
+        setBetBtn(1, 'placed', '✓ AUTO');
+        socket.emit('bet:place', { amount: this.amount, autoCashout: this.cashout || 2 });
+      }
+    },
+
+    _onRoundResult: function() {
+      if (!this.active) return;
+      this.roundsLeft--;
+      this._updateStatus();
+      if (this.roundsLeft <= 0) { this.stop(); toast('Auto bet complete!', 'ok'); }
+    },
+
+    _updateStatus: function(msg) {
+      var el = document.getElementById('ab-status');
+      if (!el) return;
+      if (msg) { el.textContent = msg; el.style.color = 'var(--muted)'; return; }
+      if (!this.active) { el.textContent = ''; return; }
+      var bal = currentUser ? parseFloat(currentUser.balance||0) : 0;
+      var pnl = bal - this.startBalance;
+      el.innerHTML = 'Round <strong style="color:#fff">' + (this.originalRounds - this.roundsLeft + 1) + '/' + this.originalRounds + '</strong>'
+        + ' &nbsp; P&L: <strong style="color:' + (pnl>=0?'var(--green)':'#ff6666') + '">' + (pnl>=0?'+':'') + pnl.toFixed(2) + '</strong>';
+    },
+
+    // Called when round crashes — queue next bet
+    onCrash: function() {
+      if (!this.active) return;
+      this._onRoundResult();
+      if (this.active && this.roundsLeft > 0) {
+        // Wait for next waiting phase, then bet
+        var self = this;
+        var waitForWaiting = function() {
+          if (!self.active) return;
+          if (gameStatus === 'waiting') { self._placeBet(); }
+          else { setTimeout(waitForWaiting, 200); }
+        };
+        setTimeout(waitForWaiting, 500);
+      }
+    }
+  };
+  AutoBet.originalRounds = 10;
+  AutoBet.cashout = 2.0;
+  // Override start to capture originalRounds
+  var _origStart = AutoBet.start.bind(AutoBet);
+  AutoBet.start = function() {
+    var r = parseInt(document.getElementById('ab-rounds') ? document.getElementById('ab-rounds').value : 10) || 10;
+    var c = parseFloat(document.getElementById('ab-cashout') ? document.getElementById('ab-cashout').value : 2) || 2;
+    AutoBet.originalRounds = r;
+    AutoBet.cashout = c;
+    _origStart();
+  };
+  window.AutoBet = AutoBet;
+
+  window.adminSeedDemo = function() {
+    if (!confirm('Create 20 demo users? This should only be done once.')) return;
+    httpPost('/api/admin/seed-demo', {}, function(r) {
+      toast(r.ok ? r.msg : (r.msg||'Error'), r.ok ? 'ok' : 'err');
+    });
+  };
+
+  window.adminResolve = function(id) {
+    httpPost('/api/admin/resolve-fraud/'+id, {}, function(r) {
+      toast(r.ok ? 'Alert resolved' : (r.msg||'Error'), r.ok ? 'ok' : 'err');
+      window.loadAdminPanel();
+    });
+  };
+
+  // ── User Management Actions ──────────────────────────────────
+
+  window.adminAdjustBalance = function(userId, username, currentBal) {
+    var modal = g('modal-user-action');
+    if (!modal) return;
+    g('ua-title').textContent    = 'Adjust Balance — ' + username;
+    g('ua-current-bal').textContent = 'Current: ' + parseFloat(currentBal).toFixed(2);
+    g('ua-amount').value  = '';
+    g('ua-reason').value  = '';
+    g('ua-amount').placeholder = 'e.g. 500 (add) or -500 (deduct)';
+    g('ua-submit-btn').onclick = function() {
+      var amt    = parseFloat(g('ua-amount').value);
+      var reason = g('ua-reason').value.trim();
+      if (isNaN(amt) || amt === 0) { g('ua-alert').textContent = 'Enter a non-zero amount'; g('ua-alert').style.display='block'; return; }
+      if (!reason) { g('ua-alert').textContent = 'Reason is required for the audit trail'; g('ua-alert').style.display='block'; return; }
+      g('ua-alert').style.display = 'none';
+      g('ua-submit-btn').disabled = true;
+      g('ua-submit-btn').textContent = 'Saving...';
+      httpPost('/api/admin/adjust-balance', { userId: userId, amount: amt, reason: reason }, function(r) {
+        g('ua-submit-btn').disabled = false;
+        g('ua-submit-btn').textContent = 'Apply';
+        if (r.ok) {
+          toast('✅ Balance adjusted. New balance: ' + parseFloat(r.newBalance).toFixed(2), 'ok');
+          modal.classList.remove('open');
+          window.loadAdminPanel();
+        } else {
+          g('ua-alert').textContent = r.msg || 'Failed';
+          g('ua-alert').style.display = 'block';
+        }
+      });
+    };
+    modal.classList.add('open');
+  };
+
+  window.adminForfeit = function(userId, username) {
+    var reason = prompt('Forfeit ALL balance for ' + username + '?\nEnter reason (required):');
+    if (!reason) return;
+    if (!confirm('CONFIRM: Remove all balance from ' + username + '? This cannot be undone.')) return;
+    httpPost('/api/admin/forfeit-balance', { userId: userId, reason: reason }, function(r) {
+      toast(r.ok ? r.msg : (r.msg||'Error'), r.ok ? 'ok' : 'err');
+      if (r.ok) window.loadAdminPanel();
+    });
+  };
+
+  window.adminBan = function(userId, username, ban) {
+    var action = ban ? 'BAN' : 'UNBAN';
+    var reason = prompt(action + ' ' + username + '?\nEnter reason (required):');
+    if (!reason) return;
+    httpPost('/api/admin/suspend', { userId: userId, suspend: ban, reason: reason }, function(r) {
+      if (r.ok) {
+        toast((ban ? '⛔ ' + username + ' banned' : '✅ ' + username + ' unbanned'), ban ? 'err' : 'ok');
+        window.loadAdminPanel();
+      } else {
+        toast(r.msg || 'Error', 'err');
+      }
+    });
+  };
+
+  window.adminWithdrawal = function(id, action) {
+    httpPost('/api/admin/withdrawal/'+action, {txId:id}, function(r) {
+      if (r.ok) {
+        toast((action==='approve'?'✅ Withdrawal approved':'❌ Withdrawal rejected'), 'ok');
+        // Remove the row from the table immediately — no reload needed
+        var btns = document.querySelectorAll('[onclick*="adminWithdrawal('+id+',"]');
+        btns.forEach(function(b) {
+          var row = b.closest('tr');
+          if (row) {
+            row.style.opacity = '0';
+            row.style.transition = 'opacity .3s';
+            setTimeout(function(){ if(row.parentNode) row.parentNode.removeChild(row); }, 320);
+          }
+        });
+      } else {
+        toast(r.msg || 'Error', 'err');
+      }
+    });
+  };
+
+  // ── BOOT ─────────────────────────────────────────────────────
+  console.log('[Boot] app.js IIFE running...');
+  console.log('[Boot] window.App type:', typeof window.App);
+  console.log('[Boot] window.Auth type:', typeof window.Auth);
+  console.log('[Boot] typeof io:', typeof io);
+
+  httpGet('/api/config', function(d) {
+    console.log('[Boot] /api/config:', JSON.stringify(d));
+    if (d && d.paystackKey) PAYSTACK_KEY = d.paystackKey;
+  });
+
+  httpGet('/api/me', function(d) {
+    console.log('[Boot] /api/me:', JSON.stringify(d));
+    if (d.ok && d.user) {
+      console.log('[Boot] Logged in as:', d.user.username);
+      currentUser = d.user;
+      // Store email for Paystack (persists across page reloads)
+      try { if(d.user.email) localStorage.setItem('cp_pending_email', d.user.email); } catch(ex){}
+      onUserLogin();
+    } else {
+      console.log('[Boot] No session. Connecting as guest...');
+      connectSocket();
+    }
+  });
+
+  console.log('[Boot] IIFE setup complete');
+
+})(); // end IIFE
+
+</script>
+
+</body>
+</html>
